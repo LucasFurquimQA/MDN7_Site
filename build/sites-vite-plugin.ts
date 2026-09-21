@@ -29,7 +29,10 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-export function sites({ mockAuth = true } = {}): Plugin {
+export function sites({
+  mockAuth = true,
+  mockAuthEmail = localEmail,
+}: { mockAuth?: boolean; mockAuthEmail?: string } = {}): Plugin {
   let root = process.cwd();
   let command: "build" | "serve" = "build";
 
@@ -107,7 +110,7 @@ export function sites({ mockAuth = true } = {}): Plugin {
         if (!signIn && !signOut) {
           if (signInCookies.length === 1 && signInCookies[0] === "1") {
             setHeader(request, "oai-authenticated-user-id", localUserId);
-            setHeader(request, "oai-authenticated-user-email", localEmail);
+            setHeader(request, "oai-authenticated-user-email", mockAuthEmail);
             setHeader(
               request,
               "oai-authenticated-user-full-name",

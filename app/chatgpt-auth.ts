@@ -63,8 +63,13 @@ function readUser(
 export async function requireChatGPTUser(
   returnTo: string,
 ): Promise<ChatGPTUser> {
+  const requestHeaders = await headers();
   const user = await getChatGPTUser();
   if (user) return user;
+
+  if (isLocalDevelopmentHost(requestHeaders.get("host"))) {
+    redirect(chatGPTSignInPath(returnTo));
+  }
 
   const accessLogin = `/cdn-cgi/access/login?redirect_url=${encodeURIComponent(
     safeRelativeReturnPath(returnTo),
@@ -91,10 +96,17 @@ function safeRelativeReturnPath(value: string): string {
   } catch {
     return "/";
   }
+
   if (url.origin !== "https://app.local") return "/";
   if (isReservedAuthPath(url.pathname)) return "/";
 
   return `${url.pathname}${url.search}${url.hash}`;
+}
+
+function isLocalDevelopmentHost(host: string | null): boolean {
+  if (!host) return false;
+  const hostname = host.replace(/^\[|\].*$/g, "").split(":")[0].toLowerCase();
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
 }
 
 function isReservedAuthPath(pathname: string): boolean {
