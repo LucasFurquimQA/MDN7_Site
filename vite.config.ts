@@ -74,7 +74,7 @@ export default defineConfig(async ({ mode }) => {
     },
     plugins: [
       vinext(),
-      sites({ mockAuth: !managedLinux }),
+      sites({ mockAuth: !managedLinux, mockAuthEmail: buildEnv.ADMIN_EMAIL }),
       cloudflare({
         viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] },
         inspectorPort: false,
