@@ -1,21 +1,14 @@
-// Vendored from @openai/sites-vite-plugin 0.2.0 (openai/sites#9).
-// See sites-vite-plugin.LICENSE for the upstream MIT license.
+// Local Cloudflare Access development adapter and build asset copier.
 import { access, cp, mkdir, rm } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolve } from "node:path";
 import type { Plugin } from "vite";
 
-const localUserId = "local_seedy";
-const localEmail = "seedy@sites.test";
-const localFullName = "Seedy";
-const localCookieName = "__sites_local_auth";
+const localCookieName = "__cloudflare_local_auth";
+const accessEmailHeader = "cf-access-authenticated-user-email";
 const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
 const localAddresses = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
-const authPaths = new Set([
-  "/signin-with-chatgpt",
-  "/signout-with-chatgpt",
-  "/callback",
-]);
+const accessLoginPath = "/cdn-cgi/access/login";
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -29,15 +22,15 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-export function sites({
+export function cloudflareAccessDev({
   mockAuth = true,
-  mockAuthEmail = localEmail,
-}: { mockAuth?: boolean; mockAuthEmail?: string } = {}): Plugin {
+  adminEmail = "",
+}: { mockAuth?: boolean; adminEmail?: string } = {}): Plugin {
   let root = process.cwd();
   let command: "build" | "serve" = "build";
 
   return {
-    name: "sites",
+    name: "cloudflare-access-dev",
     configResolved(config) {
       root = config.root;
       command = config.command;
@@ -46,10 +39,10 @@ export function sites({
       if (!mockAuth) return;
       const secure = Boolean(server.config.server.https);
 
-      server.config.logger.info(`Sites local sign-in: ${localEmail}`);
+      server.config.logger.info(`Cloudflare Access local sign-in: ${adminEmail || "ADMIN_EMAIL não definido"}`);
       server.middlewares.use((request, response, next) => {
         for (const name of Object.keys(request.headers)) {
-          if (name.startsWith("oai-authenticated-user-")) {
+          if (name === accessEmailHeader) {
             removeHeader(request, name);
           }
         }
@@ -62,7 +55,7 @@ export function sites({
           );
           url = new URL(request.url ?? "/", authority);
         } catch {
-          if (authPaths.has((request.url ?? "/").split("?")[0])) {
+          if ((request.url ?? "/").startsWith(accessLoginPath)) {
             respond(response, 403);
           } else {
             next();
@@ -78,7 +71,7 @@ export function sites({
           !localAddresses.has(request.socket.remoteAddress ?? "") ||
           url.origin !== authority.origin
         ) {
-          if (authPaths.has(url.pathname)) respond(response, 403);
+          if (url.pathname.startsWith(accessLoginPath)) respond(response, 403);
           else next();
           return;
         }
@@ -100,75 +93,20 @@ export function sites({
           }
         }
 
-        if (url.pathname === "/callback") {
-          respond(response, 501);
-          return;
-        }
-
-        const signIn = url.pathname === "/signin-with-chatgpt";
-        const signOut = url.pathname === "/signout-with-chatgpt";
-        if (!signIn && !signOut) {
-          if (signInCookies.length === 1 && signInCookies[0] === "1") {
-            setHeader(request, "oai-authenticated-user-id", localUserId);
-            setHeader(request, "oai-authenticated-user-email", mockAuthEmail);
-            setHeader(
-              request,
-              "oai-authenticated-user-full-name",
-              localFullName,
-            );
-            setHeader(
-              request,
-              "oai-authenticated-user-full-name-encoding",
-              "percent-encoded-utf-8",
-            );
+        if (url.pathname !== accessLoginPath) {
+          if (signInCookies.length === 1 && signInCookies[0] === "1" && adminEmail) {
+            setHeader(request, accessEmailHeader, adminEmail);
           }
           next();
           return;
         }
-
-        if (
-          (request.headers.origin && request.headers.origin !== url.origin) ||
-          request.headers["sec-fetch-site"] === "cross-site"
-        ) {
-          respond(response, 403);
-          return;
-        }
-
-        if (
-          request.headers["next-router-prefetch"] !== undefined ||
-          request.headers["x-middleware-prefetch"] === "1" ||
-          [request.headers.purpose, request.headers["sec-purpose"]].some(
-            (value) =>
-              typeof value === "string" &&
-              value
-                .split(/[;,]/)
-                .some((part) => part.trim().toLowerCase() === "prefetch"),
-          )
-        ) {
-          respond(response, 204);
-          return;
-        }
-
-        if (
-          request.method !== "GET" &&
-          (!signOut || request.method !== "POST")
-        ) {
-          response.setHeader("Allow", signIn ? "GET" : "GET, POST");
-          respond(response, 405);
-          return;
-        }
-
-        response.statusCode = request.method === "POST" ? 303 : 302;
+        const returnTo = safeReturn(url.searchParams.get("redirect_url"));
+        response.statusCode = 302;
         response.setHeader("Cache-Control", "private, no-store");
-        response.setHeader(
-          "Location",
-          safeReturn(url.searchParams.get("return_to")),
-        );
+        response.setHeader("Location", returnTo);
         response.setHeader(
           "Set-Cookie",
-          `${localCookieName}=${signIn ? "1" : ""}; Path=/; ${
-            signOut ? "Max-Age=0; " : ""
-          }HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`,
+          `${localCookieName}=1; Path=/; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`,
         );
         response.end();
       });
@@ -176,14 +114,12 @@ export function sites({
     async closeBundle() {
       if (command !== "build") return;
 
-      const outputDirectory = resolve(root, "dist", ".openai");
-      const hostingConfig = resolve(root, ".openai", "hosting.json");
+      const outputDirectory = resolve(root, "dist", ".cloudflare");
       const drizzleSource = resolve(root, "drizzle");
 
       await rm(outputDirectory, { recursive: true, force: true });
       await mkdir(outputDirectory, { recursive: true });
 
-      await cp(hostingConfig, resolve(outputDirectory, "hosting.json"));
       if (await exists(drizzleSource)) {
         await cp(drizzleSource, resolve(outputDirectory, "drizzle"), {
           recursive: true,
@@ -223,7 +159,7 @@ function safeReturn(value: string | null): string {
 
   try {
     const url = new URL(value, "http://localhost");
-    if (url.origin !== "http://localhost" || authPaths.has(url.pathname)) {
+    if (url.origin !== "http://localhost" || url.pathname === accessLoginPath) {
       return "/";
     }
     return `${url.pathname}${url.search}${url.hash}`;

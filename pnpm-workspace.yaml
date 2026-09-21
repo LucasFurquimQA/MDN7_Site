@@ -1,4 +1,4 @@
-# Copied Sites are standalone projects and cannot inherit the monorepo policy.
+# This standalone Cloudflare Worker does not inherit a monorepo policy.
 minimumReleaseAge: 10080
 minimumReleaseAgeIgnoreMissingTime: false
 trustLockfile: false
