@@ -11,7 +11,7 @@ export async function isAdmin() {
   const admin = clubEnv().ADMIN_EMAIL;
   return !!(user && admin && user.email.trim().toLowerCase() === admin.trim().toLowerCase());
 }
-const photoSchema = z.string().max(4096).refine(value => { if (!value) return true; try { const url = new URL(value); return url.protocol === "https:" && !url.username && !url.password; } catch { return false; } }, "Use um endereço HTTPS válido para a foto.");
+const photoSchema = z.string().max(2_000_000).refine(value => !value || /^data:image\/(?:jpeg|png|webp|gif);base64,[A-Za-z0-9+/]+=*$/.test(value), "Envie a foto pelo seu computador.");
 const memberSchema = z.object({
   id: z.number().int().min(1).max(7), instagram: z.string().max(255), username: z.string().max(30),
   name: z.string().max(100), bio: z.string().max(400), photo: photoSchema,
