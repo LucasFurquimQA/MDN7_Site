@@ -26,6 +26,15 @@ Para encerrar, pressione **Ctrl+C**. Esses comandos podem ser executados no
 terminal integrado do Windows, macOS ou Linux; não é necessário usar os
 scripts Bash de instalação do ambiente original.
 
+Se o PowerShell do Windows bloquear `pnpm.ps1` por causa da política de
+execução de scripts, use os executáveis Windows equivalentes, sem alterar a
+política do sistema:
+
+```powershell
+pnpm.cmd install --frozen-lockfile
+pnpm.cmd dev
+```
+
 O ZIP não inclui `node_modules`. As dependências serão baixadas no seu
 computador, a partir do `pnpm-lock.yaml` incluído. Evite misturar npm install
 e pnpm install dentro do projeto; o comando npm acima apenas instala o pnpm.
