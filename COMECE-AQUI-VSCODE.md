@@ -168,6 +168,20 @@ pnpm.cmd db:initialize:remote
 pnpm.cmd deploy
 ```
 
+Se o repositório for conectado diretamente ao painel da Cloudflare, selecione
+**Workers**, não **Pages**, e substitua a detecção automática de Next.js pelos
+comandos:
+
+```text
+Build command:  pnpm build
+Deploy command: pnpm exec wrangler deploy --config dist/server/wrangler.json
+```
+
+O comando `npx wrangler deploy` sozinho não é suficiente neste projeto: o
+arquivo de configuração usado pelo Worker só existe depois do build em
+`dist/server/wrangler.json`. No painel, configure também
+`CLOUDFLARE_D1_DATABASE_ID` nas variáveis de build, usando o ID real do D1.
+
 No Cloudflare Zero Trust, crie uma aplicação Self-hosted para o domínio e
 proteja `/admin*` e `/api/content*` com uma política que permita o e-mail
 definido em `ADMIN_EMAIL`. O Worker lê o cabeçalho

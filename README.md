@@ -56,6 +56,29 @@ fornecido por `CLOUDFLARE_D1_DATABASE_ID`. Não versione `.env` nem tokens.
 Para testar a configuração local, deixe o ID vazio e continue usando
 `pnpm.cmd dev`; nesse caso o projeto mantém o banco local do Wrangler.
 
+### Configuração do deploy pelo painel da Cloudflare
+
+Se você conectou o repositório em **Workers & Pages > Create application >
+Workers**, não aceite a detecção automática como Next.js/OpenNext. Configure
+manualmente:
+
+```text
+Build command:  pnpm build
+Deploy command: pnpm exec wrangler deploy --config dist/server/wrangler.json
+```
+
+O deploy deve ser feito como **Worker**, não como Cloudflare Pages. O comando
+`npx wrangler deploy` sem `--config` procura uma configuração padrão na raiz,
+não encontra o `dist/server/wrangler.json` gerado pelo Vinext e pode abrir o
+assistente interativo do Wrangler. Se o painel não oferecer um campo separado
+para Deploy command, use o terminal local com `pnpm deploy`.
+
+No ambiente de build do painel, cadastre `CLOUDFLARE_D1_DATABASE_ID` e, caso
+necessário, `CLOUDFLARE_D1_DATABASE_NAME` como variáveis de ambiente de build.
+O ID deve ser o banco D1 real da sua conta; não use o ID provisório
+`00000000-0000-4000-8000-000000000000`. Configure `ADMIN_EMAIL` como variável
+do Worker (não como variável pública).
+
 ### Login do painel com Cloudflare Access
 
 Crie uma aplicação **Self-hosted** no Cloudflare Zero Trust para o domínio
