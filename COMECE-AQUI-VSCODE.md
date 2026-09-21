@@ -74,16 +74,15 @@ o painel. Para testar as edições persistidas, prepare o ambiente local:
 3. Em `.env`, preencha:
 
 ```dotenv
-ADMIN_EMAIL=seedy@sites.test
+ADMIN_EMAIL=seu-email@exemplo.com
 INSTAGRAM_ACCESS_TOKEN=
 INSTAGRAM_BUSINESS_ACCOUNT_ID=
 INSTAGRAM_API_VERSION=v25.0
 ```
 
-`seedy@sites.test` é a identidade de desenvolvimento já prevista pelo plugin
-local do projeto, não é uma credencial. A simulação funciona somente no
-servidor de desenvolvimento em localhost. Na hospedagem, o administrador
-continua sendo definido por `ADMIN_EMAIL` e pela autenticação do Sites.
+O adaptador local do Cloudflare Access usa `ADMIN_EMAIL` para simular o
+cabeçalho de autenticação no servidor de desenvolvimento. Na hospedagem, o
+administrador é definido por `ADMIN_EMAIL` e pelo Cloudflare Access.
 
 4. Gere a configuração de execução e crie a tabela no banco **local**:
 
@@ -97,14 +96,14 @@ Aplique esse arquivo SQL apenas uma vez por banco local. Se a tabela já
 existir, não precisa reaplicar a migração inicial. A opção `--local` mantém
 a operação no seu computador; os dados locais ficam em `.wrangler/state`.
 
-5. Abra **http://localhost:5173/admin**. O acesso passa pela simulação de
-   login local. Salve uma alteração e confira a página inicial.
+5. Abra **http://localhost:5173/admin**. O acesso passa pelo adaptador local
+   compatível com Cloudflare Access. Salve uma alteração e confira a página.
 
 Se aparecer “Acesso restrito”, confira `ADMIN_EMAIL`, reinicie `pnpm dev` e
 use `localhost` ou `127.0.0.1`. Se o banco estiver indisponível, confirme que
 aplicou o SQL na mesma pasta do projeto e com o caminho de persistência acima.
-Não use `pnpm start` para o fluxo de login simulado; ele pertence ao preview
-do build, enquanto a simulação está no servidor de desenvolvimento.
+O login local é disponibilizado pelo servidor de desenvolvimento. O comando
+`pnpm start` serve apenas para testar o preview do build.
 
 ## 4. Instagram
 
@@ -135,12 +134,12 @@ automática e testar o login simulado, use `pnpm dev`.
 ## 6. Site publicado, dados e credenciais
 
 Editar esta cópia no VS Code não publica alterações automaticamente.
-A publicação original é gerenciada pelo Sites. Preserve `.openai/hosting.json`
-se for continuar publicando no mesmo projeto do Sites.
+A publicação é gerenciada pelo Cloudflare Workers. Mantenha as variáveis de
+produção configuradas no painel do Worker.
 
 Para hospedar em outro lugar, será necessário configurar um ambiente
 compatível com Cloudflare Workers/D1 e substituir ou adaptar a autenticação
-que hoje é fornecida pelo Sites. Não é um site para abrir diretamente por
+do Cloudflare Access. Não é um site para abrir diretamente por
 `file://` nem uma exportação HTML estática.
 
 Este ZIP contém o código-fonte e os recursos visuais; não contém o banco de
@@ -151,7 +150,7 @@ da hospedagem e o DNS de `midnigh7.club` são configurações separadas.
 
 ## 7. Publicar no Cloudflare Workers
 
-Para uma publicação fora do Sites, crie um D1 na sua conta Cloudflare e
+Para publicar no Cloudflare Workers, crie um D1 na sua conta Cloudflare e
 mantenha o binding com o nome **DB**:
 
 ```powershell

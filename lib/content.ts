@@ -1,13 +1,13 @@
 import { env } from "cloudflare:workers";
 import { z } from "zod";
 import { ClubContent, defaultContent, instagramUrl, instagramUsername } from "./club";
-import { getChatGPTUser } from "@/app/chatgpt-auth";
+import { getCloudflareUser } from "@/app/cloudflare-auth";
 
 type ClubEnv = { DB?: D1Database; ADMIN_EMAIL?: string; INSTAGRAM_ACCESS_TOKEN?: string; INSTAGRAM_BUSINESS_ACCOUNT_ID?: string; INSTAGRAM_API_VERSION?: string };
 export function clubEnv(): ClubEnv { return env as unknown as ClubEnv; }
 export function contentDb() { const db = clubEnv().DB; if (!db) throw new Error("Content database is unavailable"); return db; }
 export async function isAdmin() {
-  const user = await getChatGPTUser();
+  const user = await getCloudflareUser();
   const admin = clubEnv().ADMIN_EMAIL;
   return !!(user && admin && user.email.trim().toLowerCase() === admin.trim().toLowerCase());
 }

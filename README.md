@@ -20,7 +20,7 @@ As imagens originais do usuário estão em `public/images`. A exibição recorta
 
 ## Desenvolvimento
 
-Use os fluxos Sites para dependências, preview, build, migrações e publicação. O projeto usa pnpm e Vinext. A declaração de hospedagem em `.openai/hosting.json` preserva a identidade do site. As variáveis locais seguem `.env.example`; os valores da hospedagem são gerenciados no Sites.
+O projeto usa pnpm, Vinext, Cloudflare Workers e D1. As variáveis locais seguem `.env`; os valores de produção são gerenciados no painel do Worker.
 
 ## Hospedar no Cloudflare Workers
 
@@ -92,8 +92,8 @@ Crie uma aplicação **Self-hosted** no Cloudflare Zero Trust para o domínio
 publicado e proteja pelo menos o caminho `/admin*` e `/api/content*`.
 Crie uma política que permita somente o e-mail usado em `ADMIN_EMAIL`.
 O Access injeta `Cf-Access-Authenticated-User-Email`; o Worker usa esse
-valor para autorizar o painel e as gravações. O login simulado do Sites
-continua funcionando apenas no desenvolvimento local.
+valor para autorizar o painel e as gravações. Em desenvolvimento, o adaptador
+local simula exatamente esse mesmo cabeçalho usando `ADMIN_EMAIL`.
 
 Proteja também o domínio de origem do Worker ou desative o acesso direto ao
 `workers.dev` quando usar domínio próprio. Caso contrário, alguém poderia
@@ -103,4 +103,4 @@ Depois de configurar o Access, defina `ADMIN_EMAIL` como variável protegida
 no Worker e publique novamente. Não coloque essa variável em
 `NEXT_PUBLIC_*`, no código ou em `public/`.
 
-Para usar `midnigh7.club`, registre ou controle o domínio e configure os registros DNS devolvidos pelo Sites. O domínio não é comprado automaticamente.
+Para usar `midnigh7.club`, registre ou controle o domínio e configure os registros DNS do Cloudflare. O domínio não é comprado automaticamente.

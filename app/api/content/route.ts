@@ -1,6 +1,7 @@
 import { contentDb, contentSchema, isAdmin, mutationOriginAllowed, noStoreJson, normalizeContent, readContent } from "@/lib/content";
 export const dynamic = "force-dynamic";
 export async function GET() {
+  if (!await isAdmin()) return noStoreJson({ error: "Acesso negado." }, 403);
   const result = await readContent();
   return noStoreJson(result, result.available ? 200 : 503);
 }
