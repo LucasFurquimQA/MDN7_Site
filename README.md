@@ -79,6 +79,13 @@ O ID deve ser o banco D1 real da sua conta; não use o ID provisório
 `00000000-0000-4000-8000-000000000000`. Configure `ADMIN_EMAIL` como variável
 do Worker (não como variável pública).
 
+Em **Workers & Pages > seu projeto > Settings > Variables and Secrets**, crie
+`CLOUDFLARE_D1_DATABASE_ID` na seção de variáveis de **Build**, não somente na
+seção de variáveis do Worker em produção. O valor é o `database_id` exibido
+em **Storage & databases > D1 > seu banco**. Depois salve e execute um novo
+deploy. O build agora interrompe com uma mensagem explícita se essa variável
+estiver ausente, em vez de publicar apontando para um banco inexistente.
+
 ### Login do painel com Cloudflare Access
 
 Crie uma aplicação **Self-hosted** no Cloudflare Zero Trust para o domínio

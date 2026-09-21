@@ -23,6 +23,14 @@ export default defineConfig(async ({ mode }) => {
     buildEnv.CLOUDFLARE_D1_DATABASE_NAME ??
     process.env.CLOUDFLARE_D1_DATABASE_NAME ??
     "site-creator-d1";
+  if (
+    mode === "production" &&
+    (!d1DatabaseId || d1DatabaseId === SITE_CREATOR_PLACEHOLDER_DATABASE_ID)
+  ) {
+    throw new Error(
+      "CLOUDFLARE_D1_DATABASE_ID must contain the real Cloudflare D1 database ID for production builds.",
+    );
+  }
   const localBindingConfig = {
     main: "vinext/server/fetch-handler",
     compatibility_flags: ["nodejs_compat"],

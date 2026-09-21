@@ -181,6 +181,10 @@ O comando `npx wrangler deploy` sozinho não é suficiente neste projeto: o
 arquivo de configuração usado pelo Worker só existe depois do build em
 `dist/server/wrangler.json`. No painel, configure também
 `CLOUDFLARE_D1_DATABASE_ID` nas variáveis de build, usando o ID real do D1.
+Não basta cadastrar essa variável apenas nas variáveis de runtime do Worker:
+ela precisa estar disponível durante o build para ser gravada no
+`dist/server/wrangler.json`. O build recusa o ID provisório e informa o
+problema antes do deploy.
 
 No Cloudflare Zero Trust, crie uma aplicação Self-hosted para o domínio e
 proteja `/admin*` e `/api/content*` com uma política que permita o e-mail
