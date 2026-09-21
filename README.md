@@ -22,4 +22,55 @@ As imagens originais do usuário estão em `public/images`. A exibição recorta
 
 Use os fluxos Sites para dependências, preview, build, migrações e publicação. O projeto usa pnpm e Vinext. A declaração de hospedagem em `.openai/hosting.json` preserva a identidade do site. As variáveis locais seguem `.env.example`; os valores da hospedagem são gerenciados no Sites.
 
+## Hospedar no Cloudflare Workers
+
+O projeto está preparado para ser publicado como um Worker com D1. É
+necessário ter Node.js 22.13.0 ou superior, pnpm 11.25.0 e uma sessão do
+Wrangler autenticada:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm exec wrangler login
+pnpm exec wrangler d1 create mdn7-site-db
+```
+
+Copie o `database_id` retornado pelo último comando para
+`CLOUDFLARE_D1_DATABASE_ID` em `.env`. O nome usado na configuração é
+`mdn7-site-db`; se escolher outro, informe também
+`CLOUDFLARE_D1_DATABASE_NAME`. O binding do código é sempre **DB**.
+
+Aplique a tabela inicial no banco remoto uma única vez:
+
+```sh
+pnpm db:initialize:remote
+```
+
+Depois publique:
+
+```sh
+pnpm deploy
+```
+
+O comando de publicação gera `dist/server/wrangler.json` e usa o ID do D1
+fornecido por `CLOUDFLARE_D1_DATABASE_ID`. Não versione `.env` nem tokens.
+Para testar a configuração local, deixe o ID vazio e continue usando
+`pnpm.cmd dev`; nesse caso o projeto mantém o banco local do Wrangler.
+
+### Login do painel com Cloudflare Access
+
+Crie uma aplicação **Self-hosted** no Cloudflare Zero Trust para o domínio
+publicado e proteja pelo menos o caminho `/admin*` e `/api/content*`.
+Crie uma política que permita somente o e-mail usado em `ADMIN_EMAIL`.
+O Access injeta `Cf-Access-Authenticated-User-Email`; o Worker usa esse
+valor para autorizar o painel e as gravações. O login simulado do Sites
+continua funcionando apenas no desenvolvimento local.
+
+Proteja também o domínio de origem do Worker ou desative o acesso direto ao
+`workers.dev` quando usar domínio próprio. Caso contrário, alguém poderia
+contornar a política do Access acessando outra URL de origem.
+
+Depois de configurar o Access, defina `ADMIN_EMAIL` como variável protegida
+no Worker e publique novamente. Não coloque essa variável em
+`NEXT_PUBLIC_*`, no código ou em `public/`.
+
 Para usar `midnigh7.club`, registre ou controle o domínio e configure os registros DNS devolvidos pelo Sites. O domínio não é comprado automaticamente.

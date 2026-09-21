@@ -149,5 +149,30 @@ ou arquivos gerados de build. Alterações feitas no painel do site publicado
 não são copiadas automaticamente para este código-fonte. As variáveis reais
 da hospedagem e o DNS de `midnigh7.club` são configurações separadas.
 
+## 7. Publicar no Cloudflare Workers
+
+Para uma publicação fora do Sites, crie um D1 na sua conta Cloudflare e
+mantenha o binding com o nome **DB**:
+
+```powershell
+pnpm.cmd exec wrangler login
+pnpm.cmd exec wrangler d1 create mdn7-site-db
+```
+
+Copie o `database_id` retornado para `CLOUDFLARE_D1_DATABASE_ID` no `.env`.
+Se o banco tiver outro nome, preencha também
+`CLOUDFLARE_D1_DATABASE_NAME`. Inicialize a tabela e publique com:
+
+```powershell
+pnpm.cmd db:initialize:remote
+pnpm.cmd deploy
+```
+
+No Cloudflare Zero Trust, crie uma aplicação Self-hosted para o domínio e
+proteja `/admin*` e `/api/content*` com uma política que permita o e-mail
+definido em `ADMIN_EMAIL`. O Worker lê o cabeçalho
+`Cf-Access-Authenticated-User-Email` emitido pelo Access. Proteja ou
+desative o endereço `workers.dev` para impedir um bypass da política.
+
 A cópia mantém os scripts originais. Na ausência de `.sites-runtime`, o
 projeto escolhe automaticamente o modo portátil para desenvolvimento local.
