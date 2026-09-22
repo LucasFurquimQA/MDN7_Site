@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { z } from "zod";
-import { ClubContent, defaultContent, defaultProducts, instagramUrl, instagramUsername } from "./club";
+import { ClubContent, ClothingPhotos, ClothingVariant, defaultContent, defaultProducts, instagramUrl, instagramUsername } from "./club";
 import { getCloudflareUser } from "@/app/cloudflare-auth";
 
 type ClubEnv = { DB?: D1Database; ADMIN_EMAIL?: string; INSTAGRAM_ACCESS_TOKEN?: string; INSTAGRAM_BUSINESS_ACCOUNT_ID?: string; INSTAGRAM_API_VERSION?: string };
@@ -12,6 +12,7 @@ export async function isAdmin() {
   return !!(user && admin && user.email.trim().toLowerCase() === admin.trim().toLowerCase());
 }
 const photoSchema = z.string().max(2_000_000).refine(value => !value || /^data:image\/(?:jpeg|png|webp|gif);base64,[A-Za-z0-9+/]+=*$/.test(value), "Envie a foto pelo seu computador.");
+const photosSchema = z.object({ frontPiece: photoSchema, frontModel: photoSchema, backPiece: photoSchema, backModel: photoSchema });
 const memberSchema = z.object({
   id: z.number().int().min(1).max(7), instagram: z.string().max(255), username: z.string().max(30),
   name: z.string().max(100), bio: z.string().max(400), photo: photoSchema,
@@ -24,6 +25,7 @@ const productSchema = z.object({
   type: z.string().trim().min(1, "Informe o tipo da roupa.").max(50),
   cuts: z.array(z.string().trim().min(1).max(50)).min(1, "Informe pelo menos um corte.").max(20).default(["Oversized"]),
   photo: photoSchema,
+  variants: z.array(z.object({ type: z.string().trim().min(1).max(50), cuts: z.array(z.string().trim().min(1).max(50)).min(1).max(20), photos: z.record(z.string(), photosSchema).optional() })).min(1).optional(),
 });
 export const contentSchema = z.object({
   instagram: z.string().max(255).refine(value => !!instagramUsername(value), "Informe o perfil do Instagram do clube."),
@@ -33,10 +35,10 @@ export const contentSchema = z.object({
 }).superRefine((value, ctx) => {
   const usernames = new Set<string>();
   value.members.forEach((member, index) => {
-    if (member.id !== index + 1) ctx.addIssue({ code: "custom", path: ["members", index], message: "Mantenha os sete administradores na ordem." });
+    if (member.id !== index + 1) ctx.addIssue({ code: "custom", path: ["members", index], message: "Mantenha os sete referências na ordem." });
     const username = instagramUsername(member.instagram);
-    if (member.instagram.trim() && !username) ctx.addIssue({ code: "custom", path: ["members", index, "instagram"], message: `O Instagram do administrador ${index + 1} não é válido.` });
-    if (username && usernames.has(username)) ctx.addIssue({ code: "custom", message: "Cada administrador deve ter um perfil diferente." });
+    if (member.instagram.trim() && !username) ctx.addIssue({ code: "custom", path: ["members", index, "instagram"], message: `O Instagram do referência ${index + 1} não é válido.` });
+    if (username && usernames.has(username)) ctx.addIssue({ code: "custom", message: "Cada referência deve ter um perfil diferente." });
     if (username) usernames.add(username);
   });
   const ids = new Set<string>();
@@ -46,7 +48,12 @@ export const contentSchema = z.object({
   });
 });
 export function normalizeContent(input: ClubContent): ClubContent {
-  return { story: input.story.trim(), instagram: instagramUrl(input.instagram), members: input.members.map(member => ({ ...member, instagram: instagramUrl(member.instagram), username: instagramUsername(member.instagram) || "", name: member.name.trim(), bio: member.bio.trim(), photo: member.photo.trim() })), products: (input.products || defaultProducts).map(product => ({ ...product, id: product.id.trim().toLowerCase(), name: product.name.trim(), edition: product.edition.trim(), label: product.label.trim(), type: product.type.trim(), cuts: Array.isArray(product.cuts) ? [...new Set(product.cuts.map(cut => cut.trim()).filter(Boolean))] : product.cut?.trim() ? [product.cut.trim()] : ["Oversized"], photo: product.photo.trim() })) };
+  return { story: input.story.trim(), instagram: instagramUrl(input.instagram), members: input.members.map(member => ({ ...member, instagram: instagramUrl(member.instagram), username: instagramUsername(member.instagram) || "", name: member.name.trim(), bio: member.bio.trim(), photo: member.photo.trim() })), products: (input.products || defaultProducts).map(product => {
+    const legacyCuts = Array.isArray(product.cuts) ? [...new Set(product.cuts.map(cut => cut.trim()).filter(Boolean))] : product.cut?.trim() ? [product.cut.trim()] : ["Oversized"];
+    const variants: ClothingVariant[] = (product.variants?.length ? product.variants : [{ type: product.type, cuts: legacyCuts }]).map(variant => ({ type: variant.type.trim(), cuts: [...new Set(variant.cuts.map(cut => cut.trim()).filter(Boolean))], photos: variant.photos })).filter(variant => variant.type && variant.cuts.length);
+    const primary = variants[0] || { type: product.type.trim(), cuts: legacyCuts };
+    return { ...product, id: product.id.trim().toLowerCase(), name: product.name.trim(), edition: product.edition.trim(), label: product.label.trim(), type: primary.type, cuts: primary.cuts, variants, photo: product.photo.trim() };
+  }) };
 }
 export async function readContent(): Promise<{ content: ClubContent; available: boolean }> {
   try {
