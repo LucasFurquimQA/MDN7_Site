@@ -24,13 +24,13 @@ export function instagramUsername(value: string): string | null {
 }
 export function instagramUrl(value: string) { const username = instagramUsername(value); return username ? `https://www.instagram.com/${username}/` : ""; }
 export type Fit = "oversized" | "babylook";
-export type Product = { id: string; name: string; edition: string; label: string; type: string; cut: string; photo: string };
+export type Product = { id: string; name: string; edition: string; label: string; type: string; cuts: string[]; photo: string; cut?: string };
 export const defaultProducts: Product[] = [
-  { id: "real-01", name: "The real cars are fun", edition: "01", label: "Primeira edição", type: "Camiseta", cut: "Oversized", photo: "" },
-  { id: "real-02", name: "The real cars are fun", edition: "02", label: "Segunda edição", type: "Camiseta", cut: "Oversized", photo: "" },
-  { id: "real-03", name: "The real cars are fun", edition: "03", label: "Terceira edição", type: "Camiseta", cut: "Oversized", photo: "" },
-  { id: "reta-01", name: "Na reta até minha vó acelera", edition: "01", label: "Primeira edição", type: "Camiseta", cut: "Oversized", photo: "" },
-  { id: "reta-02", name: "Na reta até minha vó acelera", edition: "02", label: "Segunda edição", type: "Camiseta", cut: "Oversized", photo: "" },
+  { id: "real-01", name: "The real cars are fun", edition: "01", label: "Primeira edição", type: "Camiseta", cuts: ["Oversized", "Babylook"], photo: "" },
+  { id: "real-02", name: "The real cars are fun", edition: "02", label: "Segunda edição", type: "Camiseta", cuts: ["Oversized", "Babylook"], photo: "" },
+  { id: "real-03", name: "The real cars are fun", edition: "03", label: "Terceira edição", type: "Camiseta", cuts: ["Oversized", "Babylook"], photo: "" },
+  { id: "reta-01", name: "Na reta até minha vó acelera", edition: "01", label: "Primeira edição", type: "Camiseta", cuts: ["Oversized", "Babylook"], photo: "" },
+  { id: "reta-02", name: "Na reta até minha vó acelera", edition: "02", label: "Segunda edição", type: "Camiseta", cuts: ["Oversized", "Babylook"], photo: "" },
 ];
 defaultContent.products = defaultProducts;
 // Display the original mockups with production annotations outside the visible frame.

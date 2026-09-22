@@ -22,7 +22,7 @@ const productSchema = z.object({
   edition: z.string().trim().min(1).max(30),
   label: z.string().trim().min(1).max(80),
   type: z.string().trim().min(1, "Informe o tipo da roupa.").max(50),
-  cut: z.string().trim().min(1, "Informe o corte da roupa.").max(50).default("Oversized"),
+  cuts: z.array(z.string().trim().min(1).max(50)).min(1, "Informe pelo menos um corte.").max(20).default(["Oversized"]),
   photo: photoSchema,
 });
 export const contentSchema = z.object({
@@ -46,7 +46,7 @@ export const contentSchema = z.object({
   });
 });
 export function normalizeContent(input: ClubContent): ClubContent {
-  return { story: input.story.trim(), instagram: instagramUrl(input.instagram), members: input.members.map(member => ({ ...member, instagram: instagramUrl(member.instagram), username: instagramUsername(member.instagram) || "", name: member.name.trim(), bio: member.bio.trim(), photo: member.photo.trim() })), products: (input.products || defaultProducts).map(product => ({ ...product, id: product.id.trim().toLowerCase(), name: product.name.trim(), edition: product.edition.trim(), label: product.label.trim(), type: product.type.trim(), cut: product.cut?.trim() || "Oversized", photo: product.photo.trim() })) };
+  return { story: input.story.trim(), instagram: instagramUrl(input.instagram), members: input.members.map(member => ({ ...member, instagram: instagramUrl(member.instagram), username: instagramUsername(member.instagram) || "", name: member.name.trim(), bio: member.bio.trim(), photo: member.photo.trim() })), products: (input.products || defaultProducts).map(product => ({ ...product, id: product.id.trim().toLowerCase(), name: product.name.trim(), edition: product.edition.trim(), label: product.label.trim(), type: product.type.trim(), cuts: Array.isArray(product.cuts) ? [...new Set(product.cuts.map(cut => cut.trim()).filter(Boolean))] : product.cut?.trim() ? [product.cut.trim()] : ["Oversized"], photo: product.photo.trim() })) };
 }
 export async function readContent(): Promise<{ content: ClubContent; available: boolean }> {
   try {
