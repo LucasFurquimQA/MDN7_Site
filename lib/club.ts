@@ -24,7 +24,8 @@ export function instagramUsername(value: string): string | null {
 }
 export function instagramUrl(value: string) { const username = instagramUsername(value); return username ? `https://www.instagram.com/${username}/` : ""; }
 export type Fit = "oversized" | "babylook";
-export type Product = { id: string; name: string; edition: string; label: string; type: string; cuts: string[]; photo: string; cut?: string };
+export type ClothingVariant = { type: string; cuts: string[] };
+export type Product = { id: string; name: string; edition: string; label: string; type: string; cuts: string[]; variants?: ClothingVariant[]; photo: string; cut?: string };
 export const defaultProducts: Product[] = [
   { id: "real-01", name: "The real cars are fun", edition: "01", label: "Primeira edição", type: "Camiseta", cuts: ["Oversized", "Babylook"], photo: "" },
   { id: "real-02", name: "The real cars are fun", edition: "02", label: "Segunda edição", type: "Camiseta", cuts: ["Oversized", "Babylook"], photo: "" },
