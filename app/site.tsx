@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUpRight, Check, Menu, X } from "lucide-react";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ClubContent, instagramUsername, Member } from "@/lib/club";
-const links = [{ id: "o-grupo", title: "O grupo", href: "#o-grupo" }, { id: "roupas", title: "Roupas", href: "/roupas" }, { id: "membros", title: "Referências", href: "#membros" }, { id: "participar", title: "Como participar", href: "#participar" }];
+const links = [{ id: "o-grupo", title: "O grupo", href: "#o-grupo" }, { id: "membros", title: "Referências", href: "#membros" }, { id: "participar", title: "Como participar", href: "#participar" }, { id: "roupas", title: "Roupas", href: "/roupas" }];
 function Instagram({ size = 20 }: { size?: number }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r=".8" fill="currentColor" stroke="none" /></svg>; }
 
 function MemberCard({ member }: { member: Member }) {
