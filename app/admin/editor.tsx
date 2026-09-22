@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowUpRight, Save } from "lucide-react";
 import { ClubContent, instagramUsername, instagramUrl, Member, Product } from "@/lib/club";
 
 const clothingCuts: Record<string, string[]> = {
-  Camiseta: ["Oversized", "Babylook", "Básica", "Cropped", "Regata"],
+  Camiseta: ["Oversized", "Babylook", "Básica", "Cropped"],
   Moletom: ["Oversized", "Canguru", "Básico", "Cropped", "Com capuz"],
   Boné: ["Aba curva", "Aba reta", "Trucker", "Dad hat"],
   Gorro: ["Tradicional", "Pescador", "Dobrável"],
