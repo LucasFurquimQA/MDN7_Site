@@ -4,7 +4,7 @@ Site responsivo do clube com catálogo de cinco estampas, duas modelagens e pain
 
 ## Conteúdo
 
-A história, o Instagram oficial e os sete administradores são gravados em D1. O painel só permite alterações pelo proprietário identificado por `ADMIN_EMAIL`, configurado como variável protegida na hospedagem. Visitantes não possuem acesso de escrita.
+A história, o Instagram oficial, o catálogo de roupas e os sete administradores são gravados em D1. No painel em `/admin`, o responsável também pode editar nomes, tipos, edições, legendas e fotos das peças, além de adicionar ou remover itens. As fotos são convertidas para o conteúdo salvo (até 1,5 MB por arquivo). O painel só permite alterações pelo proprietário identificado por `ADMIN_EMAIL`, configurado como variável protegida na hospedagem. Visitantes não possuem acesso de escrita.
 
 O Instagram inicial `@midnigh7.club` é uma suposição editável; confirme o endereço oficial antes de divulgar.
 

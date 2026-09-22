@@ -1,9 +1,10 @@
 export type Member = { id: number; instagram: string; username: string; name: string; bio: string; photo: string };
-export type ClubContent = { instagram: string; story: string; members: Member[] };
+export type ClubContent = { instagram: string; story: string; members: Member[]; products: Product[] };
 export const defaultContent: ClubContent = {
   instagram: "https://www.instagram.com/midnigh7.club/",
   story: "O Midnigh7 Club nasceu de uma ideia simples: reunir pessoas que vivem a paixão por carros de verdade. Mais do que marcas, potência ou estilo, o que nos conecta são as histórias por trás de cada projeto e a vontade de compartilhar essa cultura.\n\nCom inspiração na cena automotiva japonesa e espaço para todas as origens, construímos um grupo em que amizade, respeito e paixão vêm sempre em primeiro lugar.",
   members: Array.from({ length: 7 }, (_, i) => ({ id: i + 1, instagram: "", username: "", name: "", bio: "", photo: "" })),
+  products: [],
 };
 export function instagramUsername(value: string): string | null {
   const input = value.trim();
@@ -23,14 +24,15 @@ export function instagramUsername(value: string): string | null {
 }
 export function instagramUrl(value: string) { const username = instagramUsername(value); return username ? `https://www.instagram.com/${username}/` : ""; }
 export type Fit = "oversized" | "babylook";
-export type Product = { id: string; name: string; edition: string; label: string };
-export const products: Product[] = [
-  { id: "real-01", name: "The real cars are fun", edition: "01", label: "Primeira edição" },
-  { id: "real-02", name: "The real cars are fun", edition: "02", label: "Segunda edição" },
-  { id: "real-03", name: "The real cars are fun", edition: "03", label: "Terceira edição" },
-  { id: "reta-01", name: "Na reta até minha vó acelera", edition: "01", label: "Primeira edição" },
-  { id: "reta-02", name: "Na reta até minha vó acelera", edition: "02", label: "Segunda edição" },
+export type Product = { id: string; name: string; edition: string; label: string; type: string; photo: string };
+export const defaultProducts: Product[] = [
+  { id: "real-01", name: "The real cars are fun", edition: "01", label: "Primeira edição", type: "Camiseta", photo: "" },
+  { id: "real-02", name: "The real cars are fun", edition: "02", label: "Segunda edição", type: "Camiseta", photo: "" },
+  { id: "real-03", name: "The real cars are fun", edition: "03", label: "Terceira edição", type: "Camiseta", photo: "" },
+  { id: "reta-01", name: "Na reta até minha vó acelera", edition: "01", label: "Primeira edição", type: "Camiseta", photo: "" },
+  { id: "reta-02", name: "Na reta até minha vó acelera", edition: "02", label: "Segunda edição", type: "Camiseta", photo: "" },
 ];
+defaultContent.products = defaultProducts;
 // Display the original mockups with production annotations outside the visible frame.
 export const imageFrames: Record<string, { width: number; height: number; top: number; bottom: number }> = {
   "front-babylook": { width: 668, height: 704, top: 14, bottom: 638 },

@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { z } from "zod";
-import { ClubContent, defaultContent, instagramUrl, instagramUsername } from "./club";
+import { ClubContent, defaultContent, defaultProducts, instagramUrl, instagramUsername } from "./club";
 import { getCloudflareUser } from "@/app/cloudflare-auth";
 
 type ClubEnv = { DB?: D1Database; ADMIN_EMAIL?: string; INSTAGRAM_ACCESS_TOKEN?: string; INSTAGRAM_BUSINESS_ACCOUNT_ID?: string; INSTAGRAM_API_VERSION?: string };
@@ -16,10 +16,19 @@ const memberSchema = z.object({
   id: z.number().int().min(1).max(7), instagram: z.string().max(255), username: z.string().max(30),
   name: z.string().max(100), bio: z.string().max(400), photo: photoSchema,
 });
+const productSchema = z.object({
+  id: z.string().min(1).max(80).regex(/^[a-z0-9-]+$/),
+  name: z.string().trim().min(1, "Informe o nome da peça.").max(120),
+  edition: z.string().trim().min(1).max(30),
+  label: z.string().trim().min(1).max(80),
+  type: z.string().trim().min(1, "Informe o tipo da roupa.").max(50),
+  photo: photoSchema,
+});
 export const contentSchema = z.object({
   instagram: z.string().max(255).refine(value => !!instagramUsername(value), "Informe o perfil do Instagram do clube."),
   story: z.string().trim().min(10, "Escreva pelo menos uma frase sobre o grupo.").max(8000),
   members: z.array(memberSchema).length(7),
+  products: z.array(productSchema).min(1, "Cadastre pelo menos uma peça.").max(50).default(defaultProducts),
 }).superRefine((value, ctx) => {
   const usernames = new Set<string>();
   value.members.forEach((member, index) => {
@@ -29,9 +38,14 @@ export const contentSchema = z.object({
     if (username && usernames.has(username)) ctx.addIssue({ code: "custom", message: "Cada administrador deve ter um perfil diferente." });
     if (username) usernames.add(username);
   });
+  const ids = new Set<string>();
+  value.products.forEach((product, index) => {
+    if (ids.has(product.id)) ctx.addIssue({ code: "custom", path: ["products", index, "id"], message: "Cada peça deve ter um identificador diferente." });
+    ids.add(product.id);
+  });
 });
 export function normalizeContent(input: ClubContent): ClubContent {
-  return { story: input.story.trim(), instagram: instagramUrl(input.instagram), members: input.members.map(member => ({ ...member, instagram: instagramUrl(member.instagram), username: instagramUsername(member.instagram) || "", name: member.name.trim(), bio: member.bio.trim(), photo: member.photo.trim() })) };
+  return { story: input.story.trim(), instagram: instagramUrl(input.instagram), members: input.members.map(member => ({ ...member, instagram: instagramUrl(member.instagram), username: instagramUsername(member.instagram) || "", name: member.name.trim(), bio: member.bio.trim(), photo: member.photo.trim() })), products: (input.products || defaultProducts).map(product => ({ ...product, id: product.id.trim().toLowerCase(), name: product.name.trim(), edition: product.edition.trim(), label: product.label.trim(), type: product.type.trim(), photo: product.photo.trim() })) };
 }
 export async function readContent(): Promise<{ content: ClubContent; available: boolean }> {
   try {
