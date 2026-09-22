@@ -32,6 +32,7 @@ export const contentSchema = z.object({
   story: z.string().trim().min(10, "Escreva pelo menos uma frase sobre o grupo.").max(8000),
   members: z.array(memberSchema).length(7),
   products: z.array(productSchema).min(1, "Cadastre pelo menos uma peça.").max(50).default(defaultProducts),
+  roupasMaintenance: z.boolean().default(false),
 }).superRefine((value, ctx) => {
   const usernames = new Set<string>();
   value.members.forEach((member, index) => {
@@ -48,7 +49,7 @@ export const contentSchema = z.object({
   });
 });
 export function normalizeContent(input: ClubContent): ClubContent {
-  return { story: input.story.trim(), instagram: instagramUrl(input.instagram), members: input.members.map(member => ({ ...member, instagram: instagramUrl(member.instagram), username: instagramUsername(member.instagram) || "", name: member.name.trim(), bio: member.bio.trim(), photo: member.photo.trim() })), products: (input.products || defaultProducts).map(product => {
+  return { story: input.story.trim(), instagram: instagramUrl(input.instagram), roupasMaintenance: !!input.roupasMaintenance, members: input.members.map(member => ({ ...member, instagram: instagramUrl(member.instagram), username: instagramUsername(member.instagram) || "", name: member.name.trim(), bio: member.bio.trim(), photo: member.photo.trim() })), products: (input.products || defaultProducts).map(product => {
     const legacyCuts = Array.isArray(product.cuts) ? [...new Set(product.cuts.map(cut => cut.trim()).filter(Boolean))] : product.cut?.trim() ? [product.cut.trim()] : ["Oversized"];
     const variants: ClothingVariant[] = (product.variants?.length ? product.variants : [{ type: product.type, cuts: legacyCuts }]).map(variant => ({ type: variant.type.trim(), cuts: [...new Set(variant.cuts.map(cut => cut.trim()).filter(Boolean))], photos: variant.photos })).filter(variant => variant.type && variant.cuts.length);
     const primary = variants[0] || { type: product.type.trim(), cuts: legacyCuts };

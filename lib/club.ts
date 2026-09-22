@@ -1,10 +1,11 @@
 export type Member = { id: number; instagram: string; username: string; name: string; bio: string; photo: string };
-export type ClubContent = { instagram: string; story: string; members: Member[]; products: Product[] };
+export type ClubContent = { instagram: string; story: string; members: Member[]; products: Product[]; roupasMaintenance: boolean };
 export const defaultContent: ClubContent = {
   instagram: "https://www.instagram.com/midnigh7.club/",
   story: "O Midnigh7 Club nasceu de uma ideia simples: reunir pessoas que vivem a paixão por carros de verdade. Mais do que marcas, potência ou estilo, o que nos conecta são as histórias por trás de cada projeto e a vontade de compartilhar essa cultura.\n\nCom inspiração na cena automotiva japonesa e espaço para todas as origens, construímos um grupo em que amizade, respeito e paixão vêm sempre em primeiro lugar.",
   members: Array.from({ length: 7 }, (_, i) => ({ id: i + 1, instagram: "", username: "", name: "", bio: "", photo: "" })),
   products: [],
+  roupasMaintenance: false,
 };
 export function instagramUsername(value: string): string | null {
   const input = value.trim();
