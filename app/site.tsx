@@ -24,7 +24,14 @@ export default function ClubSite({ content }: { content: ClubContent }) {
   const handle = instagramUsername(content.instagram) || "midnigh7.club";
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const id = window.setInterval(() => setHeroIndex(i => (i + 1) % heroPhotos.length), 5000);
+    const id = window.setInterval(() => {
+      setHeroIndex(current => {
+        if (heroPhotos.length <= 1) return current;
+        let next = Math.floor(Math.random() * heroPhotos.length);
+        while (next === current) next = Math.floor(Math.random() * heroPhotos.length);
+        return next;
+      });
+    }, 5000);
     return () => window.clearInterval(id);
   }, []);
   useEffect(() => { const observer = new IntersectionObserver(entries => entries.forEach(entry => { if (entry.isIntersecting) setActiveSection(entry.target.id); }), { rootMargin: "-20% 0px -55% 0px" }); document.querySelectorAll("section[id]").forEach(el => observer.observe(el)); return () => observer.disconnect(); }, []);
