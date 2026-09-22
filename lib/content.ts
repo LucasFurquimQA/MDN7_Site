@@ -33,10 +33,10 @@ export const contentSchema = z.object({
 }).superRefine((value, ctx) => {
   const usernames = new Set<string>();
   value.members.forEach((member, index) => {
-    if (member.id !== index + 1) ctx.addIssue({ code: "custom", path: ["members", index], message: "Mantenha os sete administradores na ordem." });
+    if (member.id !== index + 1) ctx.addIssue({ code: "custom", path: ["members", index], message: "Mantenha os sete referências na ordem." });
     const username = instagramUsername(member.instagram);
-    if (member.instagram.trim() && !username) ctx.addIssue({ code: "custom", path: ["members", index, "instagram"], message: `O Instagram do administrador ${index + 1} não é válido.` });
-    if (username && usernames.has(username)) ctx.addIssue({ code: "custom", message: "Cada administrador deve ter um perfil diferente." });
+    if (member.instagram.trim() && !username) ctx.addIssue({ code: "custom", path: ["members", index, "instagram"], message: `O Instagram do referência ${index + 1} não é válido.` });
+    if (username && usernames.has(username)) ctx.addIssue({ code: "custom", message: "Cada referência deve ter um perfil diferente." });
     if (username) usernames.add(username);
   });
   const ids = new Set<string>();
