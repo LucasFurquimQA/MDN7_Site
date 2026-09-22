@@ -1,50 +1,76 @@
 "use client";
-import { FormEvent, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowUpRight, Download, Save } from "lucide-react";
-import { ClubContent, instagramUsername, instagramUrl, Member } from "@/lib/club";
+import { FormEvent, useEffect, useState } from "react";
+import { ArrowLeft, ArrowUpRight, Save } from "lucide-react";
+import { ClubContent, instagramUsername, instagramUrl, Member, Product } from "@/lib/club";
 
-export default function AdminEditor({ initial, available, instagramConnected }: { initial: ClubContent; available: boolean; instagramConnected: boolean }) {
+const clothingCuts: Record<string, string[]> = {
+  Camiseta: ["Oversized", "Babylook", "Básica", "Cropped"],
+  Moletom: ["Oversized", "Canguru", "Básico", "Cropped", "Com capuz"],
+  Boné: ["Aba curva", "Aba reta", "Trucker", "Dad hat"],
+  Gorro: ["Tradicional", "Pescador", "Dobrável"],
+};
+const clothingTypes = Object.keys(clothingCuts);
+const fallbackCuts = ["Básico", "Oversized", "Cropped", "Tradicional"];
+function optionsForProduct(product: Product) {
+  const options = clothingCuts[product.type] || fallbackCuts;
+  return [...options, ...product.cuts.filter(cut => !options.includes(cut))];
+}
+
+export default function AdminEditor({ initial, available }: { initial: ClubContent; available: boolean }) {
   const [content, setContent] = useState(initial);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [feedback, setFeedback] = useState(available ? "" : "Não foi possível carregar o conteúdo salvo. Recarregue a página antes de editar.");
   const [error, setError] = useState(!available);
-  const [imports, setImports] = useState<Record<number, { loading: boolean; message: string }>>({});
-  const controllers = useRef<Record<number, AbortController>>({});
-  const lastImported = useRef<Record<number, string>>(Object.fromEntries(initial.members.map(m => [m.id, instagramUsername(m.instagram) || ""])));
-  const currentContent = useRef(content);
-  useEffect(() => { currentContent.current = content; }, [content]);
+  const [fileNames, setFileNames] = useState<Record<string, string>>({});
   useEffect(() => { const leave = (event: BeforeUnloadEvent) => { if (dirty) event.preventDefault(); }; window.addEventListener("beforeunload", leave); return () => window.removeEventListener("beforeunload", leave); }, [dirty]);
-  useEffect(() => () => { Object.values(controllers.current).forEach(controller => controller.abort()); }, []);
   const update = (patch: Partial<ClubContent>) => { setContent(c => ({ ...c, ...patch })); setDirty(true); setFeedback(""); };
+  const updateProduct = (id: string, patch: Partial<Product>) => { setContent(c => ({ ...c, products: c.products.map(p => p.id === id ? { ...p, ...patch } : p) })); setDirty(true); setFeedback(""); };
+  const toggleCut = (product: Product, cut: string) => {
+    if (product.cuts.includes(cut) && product.cuts.length === 1) {
+      setFeedback("Mantenha pelo menos um corte selecionado.");
+      return;
+    }
+    updateProduct(product.id, { cuts: product.cuts.includes(cut) ? product.cuts.filter(value => value !== cut) : [...product.cuts, cut] });
+  };
+  const removeProduct = (id: string) => { if (content.products.length <= 1) { setFeedback("Mantenha pelo menos uma peça no catálogo."); return; } setContent(c => ({ ...c, products: c.products.filter(p => p.id !== id) })); setDirty(true); };
+  const addProduct = () => { const id = `peca-${Date.now()}`; setContent(c => ({ ...c, products: [...c.products, { id, name: "Nova peça", edition: "01", label: "Nova coleção", type: "Camiseta", cuts: ["Básico"], photo: "" }] })); setDirty(true); setFeedback(""); };
+  async function uploadProductPhoto(id: string, file: File | undefined) {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { setFeedback("Selecione um arquivo de imagem válido."); return; }
+    if (file.size > 1_500_000) { setFeedback("A foto deve ter no máximo 1,5 MB."); return; }
+    const reader = new FileReader();
+    reader.onload = () => { if (typeof reader.result !== "string") { setFeedback("Não foi possível ler essa foto."); return; } updateProduct(id, { photo: reader.result }); setFileNames(v => ({ ...v, [id]: file.name })); setFeedback("Foto carregada. Salve as alterações para publicar."); };
+    reader.onerror = () => setFeedback("Não foi possível ler essa foto.");
+    reader.readAsDataURL(file);
+  }
   const updateMember = (id: number, patch: Partial<Member>) => { setContent(c => ({ ...c, members: c.members.map(m => m.id === id ? { ...m, ...patch } : m) })); setDirty(true); setFeedback(""); };
+  async function uploadPhoto(id: number, file: File | undefined) {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setFeedback("Selecione um arquivo de imagem válido.");
+      return;
+    }
+    if (file.size > 1_500_000) {
+      setFeedback("A foto deve ter no máximo 1,5 MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== "string") {
+        setFeedback("Não foi possível ler essa foto.");
+        return;
+      }
+      updateMember(id, { photo: reader.result });
+      setFileNames(v => ({ ...v, [id]: file.name }));
+      setFeedback("Foto carregada. Salve as alterações para publicar.");
+    };
+    reader.onerror = () => setFeedback("Não foi possível ler essa foto.");
+    reader.readAsDataURL(file);
+  }
   const updateLink = (member: Member, value: string) => {
-    controllers.current[member.id]?.abort();
     const changed = instagramUsername(value) !== member.username;
     updateMember(member.id, { instagram: value, username: instagramUsername(value) || "", ...(changed ? { name: "", bio: "", photo: "" } : {}) });
-    setImports(v => ({ ...v, [member.id]: { loading: false, message: "" } }));
-  };
-  async function importProfile(id: number, link: string, automatic = false) {
-    const username = instagramUsername(link);
-    if (!link.trim()) return;
-    if (!username) { setImports(v => ({ ...v, [id]: { loading: false, message: "Informe um @ ou o link completo de um perfil do Instagram." } })); return; }
-    updateMember(id, { instagram: instagramUrl(link), username });
-    lastImported.current[id] = username;
-    if (!instagramConnected && automatic) { setImports(v => ({ ...v, [id]: { loading: false, message: `@${username} identificado. Foto, nome e descrição podem ser preenchidos abaixo.` } })); return; }
-    controllers.current[id]?.abort();
-    const controller = new AbortController(); controllers.current[id] = controller;
-    setImports(v => ({ ...v, [id]: { loading: true, message: "Consultando o Instagram…" } }));
-    try {
-      const response = await fetch("/api/instagram", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ instagram: link }), signal: controller.signal });
-      const data = await response.json() as { error?: string; profile?: Pick<Member, "username" | "name" | "bio" | "photo"> };
-      if (instagramUsername(currentContent.current.members.find(m => m.id === id)?.instagram || "") !== username) return;
-      if (!response.ok || !data.profile) throw new Error(data.error || "Perfil indisponível.");
-      updateMember(id, { ...data.profile, instagram: instagramUrl(link) });
-      setImports(v => ({ ...v, [id]: { loading: false, message: "Perfil importado. Confira os dados e salve as alterações." } }));
-    } catch (e) {
-      if (controller.signal.aborted) return;
-      setImports(v => ({ ...v, [id]: { loading: false, message: e instanceof Error ? e.message : "Não foi possível importar o perfil." } }));
-    }
   }
   async function save(event: FormEvent) {
     event.preventDefault(); if (saving || !available) return;
@@ -56,5 +82,5 @@ export default function AdminEditor({ initial, available, instagramConnected }: 
       setContent(data.content); setDirty(false); setFeedback("Alterações salvas. O site já está atualizado.");
     } catch (e) { setError(true); setFeedback(e instanceof Error ? e.message : "Não foi possível salvar. Tente novamente."); } finally { setSaving(false); }
   }
-  return <main className="admin-shell"><div className="admin-top"><a className="brand" href="/"><img src="/images/logo.png" alt="Midnigh7 Club" width={210} height={48} /></a><a className="text-link" href="/"><ArrowLeft size={16} />Voltar ao site</a></div><p className="eyebrow">PAINEL DO CLUBE</p><h1>O clube, do seu jeito.</h1><p className="admin-intro">Atualize a história, o Instagram oficial e os sete administradores. As alterações aparecem no site depois de salvar.</p><form onSubmit={save}><fieldset disabled={saving || !available} style={{ border: 0, margin: 0, padding: 0 }}><section className="admin-panel"><h2>O grupo</h2><label className="admin-field">Instagram oficial<input value={content.instagram} maxLength={255} required onChange={e => update({ instagram: e.target.value })} placeholder="https://www.instagram.com/seu.perfil/" /><small>Este endereço será usado nos botões de participação e de camisetas.</small></label><label className="admin-field">Nossa história<textarea rows={8} value={content.story} minLength={10} maxLength={8000} required onChange={e => update({ story: e.target.value })} /></label></section><section className="admin-panel"><h2>Os sete administradores</h2><p>Cole o link de cada Instagram para identificar o @. {instagramConnected ? "Os perfis compatíveis serão importados automaticamente ao sair do campo." : "A importação automática de foto, nome e bio ainda precisa da conexão autorizada com a Meta. Por enquanto, preencha esses dados nos campos abaixo."}</p>{content.members.map(member => <div className="admin-member" key={member.id}><h3>Administrador {String(member.id).padStart(2, "0")}</h3><div className="admin-import-row"><label className="admin-field">Instagram do administrador {member.id}<input value={member.instagram} maxLength={255} onChange={e => updateLink(member, e.target.value)} onBlur={e => { if (e.target.value.trim() && instagramUsername(e.target.value) !== lastImported.current[member.id]) importProfile(member.id, e.target.value, true); }} placeholder="https://www.instagram.com/perfil.do.carro/" /></label><button className="button button-outline" type="button" onClick={() => importProfile(member.id, member.instagram)} disabled={!member.instagram || imports[member.id]?.loading}><Download size={16} />{imports[member.id]?.loading ? "Buscando…" : "Importar perfil"}</button></div>{imports[member.id]?.message && <p className="admin-import-message" role="status">{imports[member.id].message}</p>}<div className="admin-row"><label className="admin-field">Nome de exibição<input value={member.name} maxLength={100} onChange={e => updateMember(member.id, { name: e.target.value })} placeholder="Nome do administrador ou do projeto" /></label><label className="admin-field">Foto de perfil (link HTTPS)<input type="url" value={member.photo} maxLength={4096} onChange={e => updateMember(member.id, { photo: e.target.value })} placeholder="https://…" /></label></div><label className="admin-field">Descrição do perfil<textarea rows={3} value={member.bio} maxLength={400} onChange={e => updateMember(member.id, { bio: e.target.value })} placeholder="A bio ou uma breve descrição do projeto" /></label>{member.username && <p className="admin-small" style={{ marginTop: 16 }}>Perfil: <a href={instagramUrl(member.instagram)} target="_blank" rel="noopener noreferrer">@{member.username} <ArrowUpRight size={13} style={{ display: "inline" }} /></a></p>}</div>)}</section></fieldset><div className="admin-actions"><p className={`admin-feedback ${error ? "admin-error" : ""}`} role="status" aria-live="polite">{feedback || (dirty ? "Você tem alterações para salvar." : "Pronto para editar.")}</p><button className="button button-gold" type="submit" disabled={saving || !available || !dirty || Object.values(imports).some(item => item.loading)}><Save size={18} />{saving ? "Salvando…" : "Salvar alterações"}</button></div></form></main>;
+  return <main className="admin-shell"><div className="admin-top"><a className="brand" href="/"><img src="/images/logo.png" alt="Midnigh7 Club" width={210} height={48} /></a><a className="text-link" href="/"><ArrowLeft size={16} />Voltar ao site</a></div><p className="eyebrow">PAINEL DO CLUBE</p><h1>O clube, do seu jeito.</h1><p className="admin-intro">Atualize a história, o Instagram oficial e os sete administradores. As alterações aparecem no site depois de salvar.</p><form onSubmit={save}><fieldset disabled={saving || !available} style={{ border: 0, margin: 0, padding: 0 }}><section className="admin-panel"><h2>O grupo</h2><label className="admin-field">Instagram oficial<input value={content.instagram} maxLength={255} required onChange={e => update({ instagram: e.target.value })} placeholder="https://www.instagram.com/seu.perfil/" /><small>Este endereço será usado nos botões de participação e de camisetas.</small></label><label className="admin-field">Nossa história<textarea rows={8} value={content.story} minLength={10} maxLength={8000} required onChange={e => update({ story: e.target.value })} /></label></section><details className="admin-panel admin-catalog-disclosure" open><summary><span><h2>Catálogo de roupas</h2><p>Abra para editar nomes, cortes, tipos e fotos das peças.</p></span><span className="admin-disclosure-hint">Abrir ou fechar</span></summary><div className="admin-section-heading"><div><p>As fotos enviadas aparecem na prévia antes de salvar.</p></div><button className="button button-outline" type="button" onClick={addProduct}>Adicionar peça</button></div>{content.products.map(product => <details className="admin-product-disclosure" key={product.id} open><summary><span><strong>{product.name || "Peça sem nome"}</strong><small>{product.type} · {product.cuts.join(", ")}</small></span><span className="admin-disclosure-hint">Editar</span></summary><div className="admin-member"><div className="admin-row"><label className="admin-field">Nome da peça<input value={product.name} maxLength={120} required onChange={e => updateProduct(product.id, { name: e.target.value })} /></label><div className="admin-field"><span>Tipo de roupa</span><div className="admin-choice-grid" role="group" aria-label="Tipo de roupa">{[...clothingTypes, ...(clothingTypes.includes(product.type) ? [] : [product.type])].map(type => <button className={`admin-choice ${product.type === type ? "selected" : ""}`} type="button" key={type} aria-pressed={product.type === type} onClick={() => updateProduct(product.id, { type })}>{type}</button>)}</div><input value={clothingTypes.includes(product.type) ? "" : product.type} maxLength={50} placeholder="Outro tipo de roupa" aria-label="Nome de outro tipo de roupa" onChange={e => updateProduct(product.id, { type: e.target.value })} /></div></div>  <div className="admin-row"><label className="admin-field">Edição<input value={product.edition} maxLength={30} required onChange={e => updateProduct(product.id, { edition: e.target.value })} /></label><label className="admin-field">Legenda<input value={product.label} maxLength={80} required onChange={e => updateProduct(product.id, { label: e.target.value })} /></label></div><div className="admin-field"><span>Cortes</span><div className="admin-choice-grid" role="group" aria-label={`Cortes de ${product.type}`}>{optionsForProduct(product).map(cut => <button className={`admin-choice ${product.cuts.includes(cut) ? "selected" : ""}`} type="button" key={cut} aria-pressed={product.cuts.includes(cut)} onClick={() => toggleCut(product, cut)}>{cut}</button>)}</div><small>Selecione um ou mais cortes disponíveis para este tipo de roupa.</small></div><label className="admin-field">Foto da peça<span className="admin-file-picker"><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={e => { void uploadProductPhoto(product.id, e.target.files?.[0]); e.currentTarget.value = ""; }} /><span className="admin-file-button">Escolher arquivo</span></span><small>{fileNames[product.id] || (product.photo ? "Foto já salva" : "Nenhum arquivo escolhido")}</small>{product.photo && <div className="admin-product-preview"><img src={product.photo} alt={`Prévia de ${product.name}`} /><span>Prévia da foto enviada</span></div>}</label><button className="text-link admin-remove-button" type="button" onClick={() => removeProduct(product.id)}>Remover peça</button></div></details>)}</details><details className="admin-panel admin-members-disclosure" open><summary><span><h2>Os sete administradores</h2><p>Gerencie os dados de cada administrador e escolha as fotos diretamente do seu computador.</p></span><span className="admin-disclosure-hint">Abrir ou fechar</span></summary><div className="admin-members-content">{content.members.map(member => <div className="admin-member" key={member.id}><h3>Administrador {String(member.id).padStart(2, "0")}</h3><label className="admin-field">Instagram do administrador {member.id}<input value={member.instagram} maxLength={255} onChange={e => updateLink(member, e.target.value)} placeholder="https://www.instagram.com/perfil.do.carro/" /></label><div className="admin-row"><label className="admin-field">Nome de exibição<input value={member.name} maxLength={100} onChange={e => updateMember(member.id, { name: e.target.value })} placeholder="Nome do administrador ou do projeto" /></label><label className="admin-field">Foto de perfil (do computador)<span className="admin-file-picker"><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={e => { void uploadPhoto(member.id, e.target.files?.[0]); e.currentTarget.value = ""; }} /><span className="admin-file-button">Escolher arquivo</span></span><small>{fileNames[member.id] || (member.photo ? "Foto já salva" : "Nenhum arquivo escolhido")}</small>{member.photo && <div className="admin-photo-preview"><img src={member.photo} alt={`Prévia da foto de ${member.name || `administrador ${member.id}`}`} /><span>Prévia centralizada</span></div>}</label></div><label className="admin-field">Descrição do perfil<textarea rows={3} value={member.bio} maxLength={400} onChange={e => updateMember(member.id, { bio: e.target.value })} placeholder="A bio ou uma breve descrição do projeto" /></label>{member.username && <p className="admin-small" style={{ marginTop: 16 }}>Perfil: <a href={instagramUrl(member.instagram)} target="_blank" rel="noopener noreferrer">@{member.username} <ArrowUpRight size={13} style={{ display: "inline" }} /></a></p>}</div>)}</div></details></fieldset><div className="admin-actions"><p className={`admin-feedback ${error ? "admin-error" : ""}`} role="status" aria-live="polite">{feedback || (dirty ? "Você tem alterações para salvar." : "Pronto para editar.")}</p><button className="button button-gold" type="submit" disabled={saving || !available || !dirty}><Save size={18} />{saving ? "Salvando…" : "Salvar alterações"}</button></div></form></main>;
 }

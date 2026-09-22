@@ -11,7 +11,7 @@ export async function PUT(request: Request) {
   if (!request.headers.get("content-type")?.includes("application/json")) return noStoreJson({ error: "Envie os dados em JSON." }, 415);
   try {
     const text = await request.text();
-    if (text.length > 60000) return noStoreJson({ error: "O conteúdo excede o limite permitido." }, 413);
+    if (text.length > 15_000_000) return noStoreJson({ error: "O conteúdo excede o limite permitido." }, 413);
     const parsed = contentSchema.safeParse(JSON.parse(text));
     if (!parsed.success) return noStoreJson({ error: parsed.error.issues[0]?.message || "Revise os campos." }, 400);
     const content = normalizeContent(parsed.data);
