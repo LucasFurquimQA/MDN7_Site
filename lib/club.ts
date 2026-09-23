@@ -25,7 +25,9 @@ export function instagramUsername(value: string): string | null {
 }
 export function instagramUrl(value: string) { const username = instagramUsername(value); return username ? `https://www.instagram.com/${username}/` : ""; }
 export type Fit = "oversized" | "babylook";
-export type ClothingPhotos = { frontPiece: string; frontModel: string; backPiece: string; backModel: string };
+export const MAX_PIECE_PHOTOS = 4;
+export type ClothingPhotos = { images: string[]; cover: number };
+export const emptyClothingPhotos: ClothingPhotos = { images: [], cover: 0 };
 export type ClothingVariant = { type: string; cuts: string[]; photos?: Record<string, ClothingPhotos> };
 export type Product = { id: string; name: string; edition: string; label: string; type: string; cuts: string[]; variants?: ClothingVariant[]; photo: string; cut?: string };
 export const defaultProducts: Product[] = [
