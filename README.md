@@ -4,7 +4,7 @@ Site responsivo do clube com catálogo de cinco estampas, duas modelagens e pain
 
 ## Conteúdo
 
-A história, o Instagram oficial, o catálogo de roupas e as sete referências são gravados em D1. No painel em `/admin`, o responsável também pode editar nomes, tipos, vários cortes (como oversized, babylook ou básico), edições, legendas e fotos das peças, além de adicionar ou remover itens. Os cortes devem ser separados por vírgulas. As fotos são convertidas para o conteúdo salvo (até 1,5 MB por arquivo). O painel só permite alterações pelo proprietário identificado por `ADMIN_EMAIL`, configurado como variável protegida na hospedagem. Visitantes não possuem acesso de escrita.
+A história, o Instagram oficial, o catálogo de roupas e as sete referências são gravados em D1. As imagens enviadas pelo painel são armazenadas no Cloudflare R2; o D1 guarda apenas os caminhos das imagens e os demais dados do site. No painel em `/admin`, o responsável pode editar nomes, tipos, vários cortes (como oversized, babylook ou básico), edições, legendas e fotos das peças, além de adicionar ou remover itens. Os cortes devem ser separados por vírgulas. Cada foto pode ter até 1,5 MB. O painel só permite alterações pelo proprietário identificado por `ADMIN_EMAIL`, configurado como variável protegida na hospedagem. Visitantes não possuem acesso de escrita.
 
 O Instagram inicial `@midnigh7.club` é uma suposição editável; confirme o endereço oficial antes de divulgar.
 
@@ -20,7 +20,7 @@ As imagens originais do usuário estão em `public/images`. A exibição recorta
 
 ## Desenvolvimento
 
-O projeto usa pnpm, Vinext, Cloudflare Workers e D1. As variáveis locais seguem `.env`; os valores de produção são gerenciados no painel do Worker.
+O projeto usa pnpm, Vinext, Cloudflare Workers, D1 e R2. As variáveis locais seguem `.env`; os valores de produção são gerenciados no painel do Worker.
 
 ## Hospedar no Cloudflare Workers
 
@@ -32,9 +32,10 @@ Wrangler autenticada:
 pnpm install --frozen-lockfile
 pnpm exec wrangler login
 pnpm exec wrangler d1 create mdn7-site-db
+pnpm exec wrangler r2 bucket create mdn7-site-images
 ```
 
-Copie o `database_id` retornado pelo último comando para
+Copie o `database_id` retornado pelo comando de criação do D1 para
 `CLOUDFLARE_D1_DATABASE_ID` em `.env`. O nome usado na configuração é
 `mdn7-site-db`; se escolher outro, informe também
 `CLOUDFLARE_D1_DATABASE_NAME`. O binding do código é sempre **DB**.
@@ -55,6 +56,11 @@ O comando de publicação gera `dist/server/wrangler.json` e usa o ID do D1
 fornecido por `CLOUDFLARE_D1_DATABASE_ID`. Não versione `.env` nem tokens.
 Para testar a configuração local, deixe o ID vazio e continue usando
 `pnpm.cmd dev`; nesse caso o projeto mantém o banco local do Wrangler.
+O bucket R2 padrão é `mdn7-site-images` e usa o binding `BUCKET`. Se usar
+outro nome, configure `CLOUDFLARE_R2_BUCKET_NAME` também no ambiente de build
+e publique novamente. Depois de criar o bucket e publicar, abra o painel de
+administração: imagens base64 de versões anteriores serão migradas para o R2
+automaticamente.
 
 ### Configuração do deploy pelo painel da Cloudflare
 
@@ -75,6 +81,8 @@ para Deploy command, use o terminal local com `pnpm deploy`.
 
 No ambiente de build do painel, cadastre `CLOUDFLARE_D1_DATABASE_ID` e, caso
 necessário, `CLOUDFLARE_D1_DATABASE_NAME` como variáveis de ambiente de build.
+Crie o bucket R2 `mdn7-site-images` antes do deploy; para usar outro nome,
+cadastre `CLOUDFLARE_R2_BUCKET_NAME` também como variável de build.
 O ID deve ser o banco D1 real da sua conta; não use o ID provisório
 `00000000-0000-4000-8000-000000000000`. Configure `ADMIN_EMAIL` como variável
 do Worker (não como variável pública).
@@ -89,7 +97,8 @@ estiver ausente, em vez de publicar apontando para um banco inexistente.
 ### Login do painel com Cloudflare Access
 
 Crie uma aplicação **Self-hosted** no Cloudflare Zero Trust para o domínio
-publicado e proteja pelo menos o caminho `/admin*` e `/api/content*`.
+publicado e proteja pelo menos os caminhos `/admin*`, `/api/content*` e
+`/api/images*` (necessário para autorizar o envio de fotos).
 Crie uma política que permita somente o e-mail usado em `ADMIN_EMAIL`.
 O Access injeta `Cf-Access-Authenticated-User-Email`; o Worker usa esse
 valor para autorizar o painel e as gravações. Em desenvolvimento, o adaptador

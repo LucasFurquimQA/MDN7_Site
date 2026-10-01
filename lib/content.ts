@@ -3,16 +3,18 @@ import { z } from "zod";
 import { ClubContent, ClothingVariant, MAX_PIECE_PHOTOS, defaultContent, defaultProducts, instagramUrl, instagramUsername } from "./club";
 import { getCloudflareUser } from "@/app/cloudflare-auth";
 
-type ClubEnv = { DB?: D1Database; ADMIN_EMAIL?: string; INSTAGRAM_ACCESS_TOKEN?: string; INSTAGRAM_BUSINESS_ACCOUNT_ID?: string; INSTAGRAM_API_VERSION?: string };
+type ClubEnv = { DB?: D1Database; BUCKET?: R2Bucket; ADMIN_EMAIL?: string; INSTAGRAM_ACCESS_TOKEN?: string; INSTAGRAM_BUSINESS_ACCOUNT_ID?: string; INSTAGRAM_API_VERSION?: string };
 export function clubEnv(): ClubEnv { return env as unknown as ClubEnv; }
 export function contentDb() { const db = clubEnv().DB; if (!db) throw new Error("Content database is unavailable"); return db; }
+export function imageBucket() { const bucket = clubEnv().BUCKET; if (!bucket) throw new Error("Image storage is unavailable. Configure the Cloudflare R2 bucket binding BUCKET."); return bucket; }
 export async function isAdmin() {
   const user = await getCloudflareUser();
   const admin = clubEnv().ADMIN_EMAIL;
   return !!(user && admin && user.email.trim().toLowerCase() === admin.trim().toLowerCase());
 }
-const photoSchema = z.string().max(2_000_000).refine(value => !value || /^data:image\/(?:jpeg|png|webp|gif);base64,[A-Za-z0-9+/]+=*$/.test(value), "Envie a foto pelo seu computador.");
-const uploadedPhotoSchema = z.string().max(2_000_000).refine(value => /^data:image\/(?:jpeg|png|webp|gif);base64,[A-Za-z0-9+/]+=*$/.test(value), "Envie a foto pelo seu computador.");
+const storedImagePath = /^\/api\/images\?key=photos\/[0-9a-f-]{36}\.(?:jpg|png|webp|gif)$/;
+const photoSchema = z.string().max(2_000_000).refine(value => !value || /^data:image\/(?:jpeg|png|webp|gif);base64,[A-Za-z0-9+/]+=*$/.test(value) || storedImagePath.test(value), "Envie uma foto válida.");
+const uploadedPhotoSchema = photoSchema.refine(value => !!value, "Envie uma foto válida.");
 const photosSchema = z.object({ images: z.array(uploadedPhotoSchema).max(MAX_PIECE_PHOTOS).default([]), cover: z.number().int().min(0).max(MAX_PIECE_PHOTOS - 1).default(0) });
 const memberSchema = z.object({
   id: z.number().int().min(1).max(7), instagram: z.string().max(255), username: z.string().max(30),
@@ -55,7 +57,7 @@ export function normalizeContent(input: ClubContent): ClubContent {
     const variants: ClothingVariant[] = (product.variants?.length ? product.variants : [{ type: product.type, cuts: legacyCuts }]).map(variant => {
       const photos = variant.photos && Object.fromEntries(Object.entries(variant.photos).map(([cut, value]) => [cut, { images: value.images.slice(0, MAX_PIECE_PHOTOS), cover: Math.min(Math.max(value.cover, 0), Math.max(value.images.length - 1, 0)) }]));
       return { type: variant.type.trim(), cuts: [...new Set(variant.cuts.map(cut => cut.trim()).filter(Boolean))], photos };
-    }).filter(variant => variant.type && variant.cuts.length);
+    }).filter(variant => variant.type && variant.cuts.length).slice(0, 1);
     const primary = variants[0] || { type: product.type.trim(), cuts: legacyCuts };
     return { ...product, id: product.id.trim().toLowerCase(), name: product.name.trim(), edition: product.edition.trim(), label: product.label.trim(), type: primary.type, cuts: primary.cuts, variants, photo: product.photo.trim() };
   }) };
@@ -83,11 +85,46 @@ function migrateLegacyPiecePhotos(raw: unknown): unknown {
   }
   return raw;
 }
-export async function readContent(): Promise<{ content: ClubContent; available: boolean }> {
+export async function moveLegacyImagesToBucket(content: ClubContent) {
+  const hasLegacyImages = content.members.some(member => member.photo.startsWith("data:image/")) ||
+    content.products.some(product => product.photo.startsWith("data:image/") ||
+      product.variants?.some(variant => Object.values(variant.photos || {}).some(photos => photos.images.some(image => image.startsWith("data:image/")))));
+  if (!hasLegacyImages) return false;
+  const bucket = imageBucket();
+  let changed = false;
+  async function move(value: string): Promise<string> {
+    const match = /^data:image\/(jpeg|png|webp|gif);base64,([A-Za-z0-9+/]+=*)$/.exec(value);
+    if (!match) return value;
+    const mime = `image/${match[1]}`;
+    const extension = match[1] === "jpeg" ? "jpg" : match[1];
+    const key = `photos/${crypto.randomUUID()}.${extension}`;
+    const binary = atob(match[2]);
+    const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
+    await bucket.put(key, bytes, { httpMetadata: { contentType: mime } });
+    changed = true;
+    return `/api/images?key=${key}`;
+  }
+  await Promise.all(content.members.map(async member => { member.photo = await move(member.photo); }));
+  await Promise.all(content.products.map(async product => {
+    product.photo = await move(product.photo);
+    await Promise.all((product.variants || []).map(async variant => {
+      await Promise.all(Object.values(variant.photos || {}).map(async photos => {
+        photos.images = await Promise.all(photos.images.map(move));
+      }));
+    }));
+  }));
+  return changed;
+}
+export async function readContent(options: { migrateImages?: boolean } = {}): Promise<{ content: ClubContent; available: boolean }> {
   try {
-    const record = await contentDb().prepare("SELECT content FROM site_content WHERE id = ?").bind(1).first<{ content: string }>();
+    const db = contentDb();
+    const record = await db.prepare("SELECT content FROM site_content WHERE id = ?").bind(1).first<{ content: string }>();
     if (!record) return { content: defaultContent, available: true };
-    return { content: normalizeContent(contentSchema.parse(migrateLegacyPiecePhotos(JSON.parse(record.content)))), available: true };
+    const content = normalizeContent(contentSchema.parse(migrateLegacyPiecePhotos(JSON.parse(record.content))));
+    if (options.migrateImages && await moveLegacyImagesToBucket(content)) {
+      await db.prepare("UPDATE site_content SET content = ?, updated_at = ? WHERE id = ?").bind(JSON.stringify(content), new Date().toISOString(), 1).run();
+    }
+    return { content, available: true };
   } catch (error) {
     console.error("Club content could not be read", error instanceof Error ? error.message : "Database error");
     return { content: defaultContent, available: false };
