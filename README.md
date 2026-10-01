@@ -1,6 +1,6 @@
 # Midnigh7 Club
 
-Site responsivo do clube com catálogo de cinco estampas, duas modelagens e painel em `/admin`.
+Site responsivo do clube com catálogo de cinco estampas, duas modelagens e painel em `/admin`. A loja Midnigh7 Wear fica em `/7wear`; o endereço antigo `/roupas` redireciona para ela.
 
 ## Conteúdo
 
@@ -98,7 +98,8 @@ estiver ausente, em vez de publicar apontando para um banco inexistente.
 
 Crie uma aplicação **Self-hosted** no Cloudflare Zero Trust para o domínio
 publicado e proteja pelo menos os caminhos `/admin*`, `/api/content*` e
-`/api/images*` (necessário para autorizar o envio de fotos).
+`/api/images*` (necessário para autorizar o envio de fotos). Não proteja
+`/media*`: esse caminho entrega as imagens públicas exibidas no catálogo.
 Crie uma política que permita somente o e-mail usado em `ADMIN_EMAIL`.
 O Access injeta `Cf-Access-Authenticated-User-Email`; o Worker usa esse
 valor para autorizar o painel e as gravações. Em desenvolvimento, o adaptador
