@@ -2,6 +2,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { ArrowLeft, Save, Star, X } from "lucide-react";
 import { ClubContent, ClothingVariant, MAX_PIECE_PHOTOS, Product } from "@/lib/club";
+import { uploadImage } from "@/lib/image-storage";
 
 const clothingCuts: Record<string, string[]> = {
   Camiseta: ["Oversized", "Babylook", "Básica", "Cropped"],
@@ -56,20 +57,20 @@ export default function CatalogEditor({ initial, available }: { initial: ClubCon
   };
   async function uploadVariantPhoto(product: Product, variantIndex: number, cut: string, file: File | undefined) {
     if (!file) return;
-    if (!file.type.startsWith("image/")) { setFeedback("Selecione um arquivo de imagem válido."); return; }
     const existing = variantsForProduct(product)[variantIndex]?.photos?.[cut];
     if ((existing?.images.length || 0) >= MAX_PIECE_PHOTOS) { setFeedback(`Envie no máximo ${MAX_PIECE_PHOTOS} fotos por peça.`); return; }
-    if (file.size > 1_500_000) { setFeedback("A foto deve ter no máximo 1,5 MB."); return; }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result !== "string") { setFeedback("Não foi possível ler essa foto."); return; }
-      const variants = variantsForProduct(product).map((variant, index) => { if (index !== variantIndex) return variant; const current = variant.photos?.[cut] || { images: [], cover: 0 }; return { ...variant, photos: { ...(variant.photos || {}), [cut]: { images: [...current.images, reader.result as string].slice(0, MAX_PIECE_PHOTOS), cover: current.cover } } }; });
+    setError(false);
+    setFeedback("Enviando foto…");
+    try {
+      const photo = await uploadImage(file);
+      const variants = variantsForProduct(product).map((variant, index) => { if (index !== variantIndex) return variant; const current = variant.photos?.[cut] || { images: [], cover: 0 }; return { ...variant, photos: { ...(variant.photos || {}), [cut]: { images: [...current.images, photo].slice(0, MAX_PIECE_PHOTOS), cover: current.cover } } }; });
       updateProduct(product.id, { variants });
       setFileNames(value => ({ ...value, [`${product.id}-${variantIndex}-${cut}`]: file.name }));
-      setFeedback("Foto carregada. Salve as alterações para publicar.");
-    };
-    reader.onerror = () => setFeedback("Não foi possível ler essa foto.");
-    reader.readAsDataURL(file);
+      setFeedback("Foto enviada. Salve as alterações para publicar.");
+    } catch (uploadError) {
+      setError(true);
+      setFeedback(uploadError instanceof Error ? uploadError.message : "Não foi possível enviar a foto.");
+    }
   }
   function removeVariantPhoto(product: Product, variantIndex: number, cut: string, photoIndex: number) {
     const variants = variantsForProduct(product).map((variant, index) => { if (index !== variantIndex) return variant; const current = variant.photos?.[cut]; if (!current) return variant; const images = current.images.filter((_, i) => i !== photoIndex); const cover = current.cover > photoIndex ? current.cover - 1 : current.cover >= images.length ? Math.max(images.length - 1, 0) : current.cover; return { ...variant, photos: { ...(variant.photos || {}), [cut]: { images, cover } } }; });
@@ -93,12 +94,17 @@ export default function CatalogEditor({ initial, available }: { initial: ClubCon
   const addProduct = () => { const id = `peca-${Date.now()}`; setContent(c => ({ ...c, products: [...c.products, { id, name: "Nova peça", edition: "01", label: "Nova coleção", type: "Camiseta", cuts: ["Básico"], variants: [{ type: "Camiseta", cuts: ["Básico"] }], photo: "" }] })); setDirty(true); setFeedback(""); };
   async function uploadProductPhoto(id: string, file: File | undefined) {
     if (!file) return;
-    if (!file.type.startsWith("image/")) { setFeedback("Selecione um arquivo de imagem válido."); return; }
-    if (file.size > 1_500_000) { setFeedback("A foto deve ter no máximo 1,5 MB."); return; }
-    const reader = new FileReader();
-    reader.onload = () => { if (typeof reader.result !== "string") { setFeedback("Não foi possível ler essa foto."); return; } updateProduct(id, { photo: reader.result }); setFileNames(v => ({ ...v, [id]: file.name })); setFeedback("Foto carregada. Salve as alterações para publicar."); };
-    reader.onerror = () => setFeedback("Não foi possível ler essa foto.");
-    reader.readAsDataURL(file);
+    setError(false);
+    setFeedback("Enviando foto…");
+    try {
+      const photo = await uploadImage(file);
+      updateProduct(id, { photo });
+      setFileNames(v => ({ ...v, [id]: file.name }));
+      setFeedback("Foto enviada. Salve as alterações para publicar.");
+    } catch (uploadError) {
+      setError(true);
+      setFeedback(uploadError instanceof Error ? uploadError.message : "Não foi possível enviar a foto.");
+    }
   }
   async function save(event: FormEvent) {
     event.preventDefault(); if (saving || !available) return;

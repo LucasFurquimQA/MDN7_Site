@@ -7,7 +7,7 @@ const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
   "00000000-0000-4000-8000-000000000000";
 
 const d1 = "DB";
-const r2 = null;
+const r2 = "BUCKET";
 
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
@@ -23,6 +23,10 @@ export default defineConfig(async ({ mode }) => {
     buildEnv.CLOUDFLARE_D1_DATABASE_NAME ??
     process.env.CLOUDFLARE_D1_DATABASE_NAME ??
     "site-creator-d1";
+  const r2BucketName =
+    buildEnv.CLOUDFLARE_R2_BUCKET_NAME ??
+    process.env.CLOUDFLARE_R2_BUCKET_NAME ??
+    "mdn7-site-images";
   if (
     mode === "production" &&
     (!d1DatabaseId || d1DatabaseId === SITE_CREATOR_PLACEHOLDER_DATABASE_ID)
@@ -43,14 +47,12 @@ export default defineConfig(async ({ mode }) => {
           },
         ]
       : [],
-    r2_buckets: r2
-      ? [
-          {
-            binding: r2,
-            bucket_name: "site-creator-r2",
-          },
-        ]
-      : [],
+    r2_buckets: [
+      {
+        binding: r2,
+        bucket_name: r2BucketName,
+      },
+    ],
   };
 
   // Use Miniflare's local Request.cf placeholder unless fetching is requested.

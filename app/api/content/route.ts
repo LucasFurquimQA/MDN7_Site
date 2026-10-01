@@ -1,8 +1,8 @@
-import { contentDb, contentSchema, isAdmin, mutationOriginAllowed, noStoreJson, normalizeContent, readContent } from "@/lib/content";
+import { contentDb, contentSchema, isAdmin, moveLegacyImagesToBucket, mutationOriginAllowed, noStoreJson, normalizeContent, readContent } from "@/lib/content";
 export const dynamic = "force-dynamic";
 export async function GET() {
   if (!await isAdmin()) return noStoreJson({ error: "Acesso negado." }, 403);
-  const result = await readContent();
+  const result = await readContent({ migrateImages: true });
   return noStoreJson(result, result.available ? 200 : 503);
 }
 export async function PUT(request: Request) {
@@ -15,6 +15,7 @@ export async function PUT(request: Request) {
     const parsed = contentSchema.safeParse(JSON.parse(text));
     if (!parsed.success) return noStoreJson({ error: parsed.error.issues[0]?.message || "Revise os campos." }, 400);
     const content = normalizeContent(parsed.data);
+    await moveLegacyImagesToBucket(content);
     await contentDb().prepare("INSERT INTO site_content (id, content, updated_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at").bind(1, JSON.stringify(content), new Date().toISOString()).run();
     return noStoreJson({ content, saved: true });
   } catch (error) {

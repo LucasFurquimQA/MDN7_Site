@@ -2,6 +2,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { ArrowLeft, ArrowUpRight, Save } from "lucide-react";
 import { ClubContent, instagramUsername, instagramUrl, Member } from "@/lib/club";
+import { uploadImage } from "@/lib/image-storage";
 
 export default function AdminEditor({ initial, available }: { initial: ClubContent; available: boolean }) {
   const [content, setContent] = useState(initial);
@@ -15,26 +16,17 @@ export default function AdminEditor({ initial, available }: { initial: ClubConte
   const updateMember = (id: number, patch: Partial<Member>) => { setContent(c => ({ ...c, members: c.members.map(m => m.id === id ? { ...m, ...patch } : m) })); setDirty(true); setFeedback(""); };
   async function uploadPhoto(id: number, file: File | undefined) {
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setFeedback("Selecione um arquivo de imagem válido.");
-      return;
-    }
-    if (file.size > 1_500_000) {
-      setFeedback("A foto deve ter no máximo 1,5 MB.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result !== "string") {
-        setFeedback("Não foi possível ler essa foto.");
-        return;
-      }
-      updateMember(id, { photo: reader.result });
+    setError(false);
+    setFeedback("Enviando foto…");
+    try {
+      const photo = await uploadImage(file);
+      updateMember(id, { photo });
       setFileNames(v => ({ ...v, [id]: file.name }));
-      setFeedback("Foto carregada. Salve as alterações para publicar.");
-    };
-    reader.onerror = () => setFeedback("Não foi possível ler essa foto.");
-    reader.readAsDataURL(file);
+      setFeedback("Foto enviada. Salve as alterações para publicar.");
+    } catch (uploadError) {
+      setError(true);
+      setFeedback(uploadError instanceof Error ? uploadError.message : "Não foi possível enviar a foto.");
+    }
   }
   const updateLink = (member: Member, value: string) => {
     const changed = instagramUsername(value) !== member.username;
