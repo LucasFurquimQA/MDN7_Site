@@ -57,9 +57,9 @@ export function normalizeContent(input: ClubContent): ClubContent {
     const variants: ClothingVariant[] = (product.variants?.length ? product.variants : [{ type: product.type, cuts: legacyCuts }]).map(variant => {
       const photos = variant.photos && Object.fromEntries(Object.entries(variant.photos).map(([cut, value]) => [cut, { images: value.images.slice(0, MAX_PIECE_PHOTOS), cover: Math.min(Math.max(value.cover, 0), Math.max(value.images.length - 1, 0)) }]));
       return { type: variant.type.trim(), cuts: [...new Set(variant.cuts.map(cut => cut.trim()).filter(Boolean))], photos };
-    }).filter(variant => variant.type && variant.cuts.length).slice(0, 1);
-    const primary = variants[0] || { type: product.type.trim(), cuts: legacyCuts };
-    return { ...product, id: product.id.trim().toLowerCase(), name: product.name.trim(), edition: product.edition.trim(), label: product.label.trim(), type: primary.type, cuts: primary.cuts, variants, photo: product.photo.trim() };
+    }).filter(variant => variant.type && variant.cuts.length);
+    const primary = variants.find(variant => variant.type === product.type.trim()) || variants[0] || { type: product.type.trim(), cuts: legacyCuts };
+    return { ...product, id: product.id.trim().toLowerCase(), name: product.name.trim(), edition: product.edition.trim(), label: product.label.trim(), type: primary.type, cuts: primary.cuts, variants: variants.length ? [primary] : [], photo: product.photo.trim() };
   }) };
 }
 // Older saved content stored four fixed photo slots (front/back piece/model) instead of a photo list; convert it to the current shape before validating.
