@@ -12,7 +12,7 @@ export async function isAdmin() {
   const admin = clubEnv().ADMIN_EMAIL;
   return !!(user && admin && user.email.trim().toLowerCase() === admin.trim().toLowerCase());
 }
-const storedImagePath = /^\/api\/images\?key=photos\/[0-9a-f-]{36}\.(?:jpg|png|webp|gif)$/;
+const storedImagePath = /^(?:\/api\/images\?key=photos\/[0-9a-f-]{36}\.(?:jpg|png|webp|gif)|\/media\?key=photos\/[0-9a-f-]{36}\.(?:jpg|png|webp|gif))$/;
 const photoSchema = z.string().max(2_000_000).refine(value => !value || /^data:image\/(?:jpeg|png|webp|gif);base64,[A-Za-z0-9+/]+=*$/.test(value) || storedImagePath.test(value), "Envie uma foto válida.");
 const uploadedPhotoSchema = photoSchema.refine(value => !!value, "Envie uma foto válida.");
 const photosSchema = z.object({ images: z.array(uploadedPhotoSchema).max(MAX_PIECE_PHOTOS).default([]), cover: z.number().int().min(0).max(MAX_PIECE_PHOTOS - 1).default(0) });
@@ -102,7 +102,7 @@ export async function moveLegacyImagesToBucket(content: ClubContent) {
     const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
     await bucket.put(key, bytes, { httpMetadata: { contentType: mime } });
     changed = true;
-    return `/api/images?key=${key}`;
+    return `/media?key=${key}`;
   }
   await Promise.all(content.members.map(async member => { member.photo = await move(member.photo); }));
   await Promise.all(content.products.map(async product => {
@@ -115,13 +115,32 @@ export async function moveLegacyImagesToBucket(content: ClubContent) {
   }));
   return changed;
 }
+function migrateImageUrls(content: ClubContent) {
+  let changed = false;
+  function migrate(value: string) {
+    const match = /^\/api\/images\?key=(photos\/[0-9a-f-]{36}\.(?:jpg|png|webp|gif))$/.exec(value);
+    if (!match) return value;
+    changed = true;
+    return `/media?key=${match[1]}`;
+  }
+  for (const member of content.members) member.photo = migrate(member.photo);
+  for (const product of content.products) {
+    product.photo = migrate(product.photo);
+    for (const variant of product.variants || []) {
+      for (const photos of Object.values(variant.photos || {})) photos.images = photos.images.map(migrate);
+    }
+  }
+  return changed;
+}
 export async function readContent(options: { migrateImages?: boolean } = {}): Promise<{ content: ClubContent; available: boolean }> {
   try {
     const db = contentDb();
     const record = await db.prepare("SELECT content FROM site_content WHERE id = ?").bind(1).first<{ content: string }>();
     if (!record) return { content: defaultContent, available: true };
     const content = normalizeContent(contentSchema.parse(migrateLegacyPiecePhotos(JSON.parse(record.content))));
-    if (options.migrateImages && await moveLegacyImagesToBucket(content)) {
+    const imageUrlsChanged = migrateImageUrls(content);
+    const legacyImagesMoved = options.migrateImages && await moveLegacyImagesToBucket(content);
+    if (imageUrlsChanged || legacyImagesMoved) {
       await db.prepare("UPDATE site_content SET content = ?, updated_at = ? WHERE id = ?").bind(JSON.stringify(content), new Date().toISOString(), 1).run();
     }
     return { content, available: true };
