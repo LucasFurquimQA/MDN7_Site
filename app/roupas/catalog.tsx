@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, ArrowUpRight, Ruler, ShoppingBag, X, ZoomIn } from "lucide-react";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { ArrowLeft, ArrowRight, ArrowUpRight, RotateCcw, Ruler, ShoppingBag, X, ZoomIn, ZoomOut } from "lucide-react";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { ClubContent, ClothingPhotos, emptyClothingPhotos, imageFrames, Product } from "@/lib/club";
 
@@ -25,8 +25,60 @@ function Shirt({ product, cut, photo, priority = false }: { product: Product; cu
   return <div className="shirt-crop" style={{ aspectRatio: `${frame.width} / ${frame.bottom - frame.top}` }}><img src={`/images/${key}.png`} alt={`${product.name}, ${product.label}`} loading={priority ? "eager" : "lazy"} width={frame.width} height={frame.height} style={{ top: `${-100 * frame.top / (frame.bottom - frame.top)}%` }} /></div>;
 }
 
+function ZoomableShirt({ product, cut, photo }: { product: Product; cut: string; photo?: string }) {
+  const [scale, setScale] = useState(2);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ pointerId: number; x: number; y: number; offsetX: number; offsetY: number } | null>(null);
+  const clampOffset = (x: number, y: number, zoom: number) => {
+    const bounds = viewportRef.current?.getBoundingClientRect();
+    if (!bounds) return { x, y };
+    return {
+      x: Math.min(Math.max(x, -bounds.width * (zoom - 1) / 2), bounds.width * (zoom - 1) / 2),
+      y: Math.min(Math.max(y, -bounds.height * (zoom - 1) / 2), bounds.height * (zoom - 1) / 2),
+    };
+  };
+  const changeScale = (amount: number) => {
+    const nextScale = Math.min(4, Math.max(1, scale + amount));
+    setScale(nextScale);
+    setOffset(current => clampOffset(current.x, current.y, nextScale));
+  };
+  const startDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (scale <= 1 || (event.pointerType === "mouse" && event.button !== 0)) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, offsetX: offset.x, offsetY: offset.y };
+    setDragging(true);
+  };
+  const moveDrag = (event: PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    setOffset(clampOffset(drag.offsetX + event.clientX - drag.x, drag.offsetY + event.clientY - drag.y, scale));
+  };
+  const endDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (dragRef.current?.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    setDragging(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+
+  return <div ref={viewportRef} className={`image-zoom-visual ${dragging ? "is-dragging" : ""}`} onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}>
+    <div className="zoomable-shirt" style={{ transform: `translate3d(${offset.x}px, ${offset.y}px, 0) scale(${scale})` }}>
+      <Shirt product={product} cut={cut} photo={photo} priority />
+    </div>
+    <div className="image-zoom-controls" role="group" aria-label="Controles de zoom">
+      <button type="button" className="icon-button" aria-label="Diminuir zoom" onPointerDown={event => event.stopPropagation()} onClick={() => changeScale(-0.5)} disabled={scale <= 1}><ZoomOut size={19} /></button>
+      <span className="mono" aria-live="polite">{Math.round(scale * 100)}%</span>
+      <button type="button" className="icon-button" aria-label="Aumentar zoom" onPointerDown={event => event.stopPropagation()} onClick={() => changeScale(0.5)} disabled={scale >= 4}><ZoomIn size={19} /></button>
+      <button type="button" className="icon-button" aria-label="Centralizar imagem" onPointerDown={event => event.stopPropagation()} onClick={() => { setScale(2); setOffset({ x: 0, y: 0 }); }}><RotateCcw size={17} /></button>
+    </div>
+  </div>;
+}
+
 function ImageZoom({ product, cut, photo, open, onOpenChange }: { product: Product; cut: string; photo?: string; open: boolean; onOpenChange: (open: boolean) => void }) {
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="image-zoom-dialog" showCloseButton={false}><DialogClose className="dialog-close icon-button" aria-label="Fechar imagem ampliada"><X size={22} /></DialogClose><DialogTitle className="sr-only">Imagem ampliada: {product.name}</DialogTitle><div className="image-zoom-visual"><Shirt product={product} cut={cut} photo={photo} priority /></div></DialogContent></Dialog>;
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="image-zoom-dialog" showCloseButton={false}><DialogClose className="dialog-close icon-button" aria-label="Fechar imagem ampliada"><X size={22} /></DialogClose><DialogTitle className="sr-only">Imagem ampliada: {product.name}</DialogTitle><ZoomableShirt key={`${product.id}-${cut}-${photo || ""}`} product={product} cut={cut} photo={photo} /></DialogContent></Dialog>;
 }
 
 function ProductCarousel({ product, type, cut, priority = false, onOpen }: { product: Product; type: string; cut: string; priority?: boolean; onOpen: () => void }) {
@@ -75,7 +127,7 @@ function ProductDetails({ product, type, cut, onClose }: { product: Product | nu
             <DialogDescription className="size-chart-description">{product.name}</DialogDescription>
             <button type="button" className="size-chart-back" onClick={() => setZoomOpen(false)}><ArrowLeft size={17} />Voltar para a peça</button>
           </div>
-          <div className="image-zoom-visual"><Shirt product={product} cut={selectedCut} photo={images[index]} priority /></div>
+          <ZoomableShirt key={`${product.id}-${selectedCut}-${images[index] || ""}`} product={product} cut={selectedCut} photo={images[index]} />
         </div> : product && selectedVariant && <>
           <div className="detail-visual">
             {images.length > 1 && <span className="photo-counter mono">{String(index + 1).padStart(2, "0")} / {String(images.length).padStart(2, "0")}</span>}
