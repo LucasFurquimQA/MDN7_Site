@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, ArrowUpRight, ShoppingBag, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUpRight, Ruler, ShoppingBag, X, ZoomIn } from "lucide-react";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { ClubContent, ClothingPhotos, emptyClothingPhotos, imageFrames, Product } from "@/lib/club";
 
@@ -25,24 +25,31 @@ function Shirt({ product, cut, photo, priority = false }: { product: Product; cu
   return <div className="shirt-crop" style={{ aspectRatio: `${frame.width} / ${frame.bottom - frame.top}` }}><img src={`/images/${key}.png`} alt={`${product.name}, ${product.label}`} loading={priority ? "eager" : "lazy"} width={frame.width} height={frame.height} style={{ top: `${-100 * frame.top / (frame.bottom - frame.top)}%` }} /></div>;
 }
 
+function ImageZoom({ product, cut, photo, open, onOpenChange }: { product: Product; cut: string; photo?: string; open: boolean; onOpenChange: (open: boolean) => void }) {
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="image-zoom-dialog" showCloseButton={false}><DialogClose className="dialog-close icon-button" aria-label="Fechar imagem ampliada"><X size={22} /></DialogClose><DialogTitle className="sr-only">Imagem ampliada: {product.name}</DialogTitle><div className="image-zoom-visual"><Shirt product={product} cut={cut} photo={photo} priority /></div></DialogContent></Dialog>;
+}
+
 function ProductCarousel({ product, type, cut, priority = false, onOpen }: { product: Product; type: string; cut: string; priority?: boolean; onOpen: () => void }) {
     const photos = photosForVariant(product, type, cut);
     const images = photos.images;
     const [index, setIndex] = useState(photos.cover);
     const [hovered, setHovered] = useState(false);
+    const [zoomOpen, setZoomOpen] = useState(false);
     useEffect(() => { setIndex(photos.cover); }, [product.id, type, cut, photos.cover]);
     useEffect(() => {
       if (images.length < 2 || hovered) return;
       const timer = window.setInterval(() => setIndex(current => (current + 1) % images.length), 4200);
       return () => window.clearInterval(timer);
     }, [images.length, hovered]);
-    return <div className="product-carousel" onMouseEnter={() => { setHovered(true); setIndex(photos.cover); }} onMouseLeave={() => setHovered(false)}><button type="button" className="product-carousel-image" onClick={onOpen} aria-label={`Ver detalhes de ${product.name}`}><div className="product-tags"><span className="mono">ED. {product.edition}</span><span className="mono">{images.length > 1 ? `${index + 1} / ${images.length}` : type.toUpperCase()}</span></div><Shirt product={product} cut={cut} photo={images[index]} priority={priority} /><span className="view-product">Ver detalhes<ArrowUpRight size={17} /></span></button>{images.length > 1 && <div className="product-carousel-controls" aria-label={`Fotos de ${product.name}`}>{images.map((image, imageIndex) => <button type="button" key={`${imageIndex}-${image.slice(-12)}`} className={imageIndex === index ? "active" : ""} aria-label={`Mostrar foto ${imageIndex + 1} de ${images.length}`} aria-pressed={imageIndex === index} onClick={() => setIndex(imageIndex)}><span /></button>)}</div>}</div>;
+    return <div className="product-carousel" onMouseEnter={() => { setHovered(true); setIndex(photos.cover); }} onMouseLeave={() => setHovered(false)}><button type="button" className="product-carousel-image" onClick={onOpen} aria-label={`Ver detalhes de ${product.name}`}><div className="product-tags"><span className="mono">ED. {product.edition}</span><span className="mono">{images.length > 1 ? `${index + 1} / ${images.length}` : type.toUpperCase()}</span></div><Shirt product={product} cut={cut} photo={images[index]} priority={priority} /><span className="view-product">Ver detalhes<ArrowUpRight size={17} /></span></button><button type="button" className="catalog-zoom-trigger icon-button" aria-label={`Ampliar imagem de ${product.name}`} onClick={() => setZoomOpen(true)}><ZoomIn size={19} /></button>{images.length > 1 && <div className="product-carousel-controls" aria-label={`Fotos de ${product.name}`}>{images.map((image, imageIndex) => <button type="button" key={`${imageIndex}-${image.slice(-12)}`} className={imageIndex === index ? "active" : ""} aria-label={`Mostrar foto ${imageIndex + 1} de ${images.length}`} aria-pressed={imageIndex === index} onClick={() => setIndex(imageIndex)}><span /></button>)}</div>}<ImageZoom product={product} cut={cut} photo={images[index]} open={zoomOpen} onOpenChange={setZoomOpen} /></div>;
   }
 
 function ProductDetails({ product, type, cut, onClose }: { product: Product | null; type: string; cut: string; onClose: () => void }) {
   const [selectedType, setSelectedType] = useState(type);
   const [selectedCut, setSelectedCut] = useState(cut);
   const [index, setIndex] = useState(0);
+  const [zoomOpen, setZoomOpen] = useState(false);
+  const [sizeChartOpen, setSizeChartOpen] = useState(false);
   const variants = product ? variantsForProduct(product) : [];
   const selectedVariant = variants.find(variant => variant.type === selectedType) || variants[0];
   const photos = product ? photosForVariant(product, selectedType, selectedCut) : emptyClothingPhotos;
@@ -51,7 +58,49 @@ function ProductDetails({ product, type, cut, onClose }: { product: Product | nu
   useEffect(() => { if (selectedVariant && !selectedVariant.cuts.includes(selectedCut)) setSelectedCut(selectedVariant.cuts[0]); }, [selectedVariant, selectedCut]);
   useEffect(() => { setIndex(photos.cover); }, [product, selectedType, selectedCut, photos.cover]);
   const goTo = (next: number) => setIndex(images.length ? ((next % images.length) + images.length) % images.length : 0);
-  return <Dialog open={!!product} onOpenChange={open => { if (!open) onClose(); }}><DialogContent className="product-dialog" showCloseButton={false}><DialogClose className="dialog-close icon-button" aria-label="Fechar detalhes"><X size={22} /></DialogClose>{product && selectedVariant && <><div className="detail-visual">{images.length > 1 && <span className="photo-counter mono">{String(index + 1).padStart(2, "0")} / {String(images.length).padStart(2, "0")}</span>}<Shirt product={product} cut={selectedCut} photo={images[index]} priority />{images.length > 1 && <div className="detail-photo-arrows"><button type="button" className="icon-button" aria-label="Foto anterior" onClick={() => goTo(index - 1)}><ArrowLeft size={18} /></button><button type="button" className="icon-button" aria-label="Próxima foto" onClick={() => goTo(index + 1)}><ArrowRight size={18} /></button></div>}{images.length > 1 && <div className="product-carousel-controls detail-photo-dots" aria-label={`Fotos de ${product.name}`}>{images.map((image, imageIndex) => <button type="button" key={`${imageIndex}-${image.slice(-12)}`} className={imageIndex === index ? "active" : ""} aria-label={`Mostrar foto ${imageIndex + 1} de ${images.length}`} aria-pressed={imageIndex === index} onClick={() => setIndex(imageIndex)}><span /></button>)}</div>}</div><div className="detail-info"><span className="eyebrow">MIDNIGH7 WEAR / {selectedType.toUpperCase()} / EDIÇÃO {product.edition}</span><DialogTitle>{product.name}</DialogTitle><DialogDescription>Consulte os tamanhos e condições do lote pelo WhatsApp.</DialogDescription><span className="field-title">TIPO DE PEÇA</span><div className="fit-tabs variant-tabs">{variants.map(variant => <button className={`variant-tab ${variant.type === selectedType ? "selected" : ""}`} type="button" key={variant.type} onClick={() => { setSelectedType(variant.type); setSelectedCut(variant.cuts[0]); }}>{variant.type}</button>)}</div><span className="field-title">CORTE DISPONÍVEL</span><div className="fit-tabs variant-tabs">{selectedVariant.cuts.map(availableCut => <button className={`variant-tab ${availableCut === selectedCut ? "selected" : ""}`} type="button" key={availableCut} onClick={() => setSelectedCut(availableCut)}>{availableCut}</button>)}</div><div className="detail-note"><span className="gold-label">VENDA POR LOTE</span><p>As peças são produzidas em lotes. Fale com a gente para reservar a sua.</p></div><a className="button button-gold" href={whatsappUrl(product)} target="_blank" rel="noopener noreferrer"><ShoppingBag size={19} />Pedir pelo WhatsApp<ArrowUpRight size={19} /></a><p className="mockup-note">Imagens de referência das estampas.</p></div></>}</DialogContent></Dialog>;
+  return <>
+    <Dialog open={!!product} onOpenChange={open => { if (!open) onClose(); }}>
+      <DialogContent className={`product-dialog ${sizeChartOpen || zoomOpen ? "product-dialog-gallery" : ""}`} showCloseButton={false}>
+        <DialogClose className="dialog-close icon-button" aria-label="Fechar detalhes"><X size={22} /></DialogClose>
+        {product && selectedVariant && sizeChartOpen ? <div className="product-gallery-view">
+          <div className="product-gallery-heading">
+            <DialogTitle className="size-chart-title">Tabela de medidas</DialogTitle>
+            <DialogDescription className="size-chart-description">Guia de tamanhos das peças Midnigh7 Wear.</DialogDescription>
+            <button type="button" className="size-chart-back" onClick={() => setSizeChartOpen(false)}><ArrowLeft size={17} />Voltar para a peça</button>
+          </div>
+          <img className="size-chart-image" src="/images/tabela-medidas-7wear.png" alt="Tabela de medidas para camisetas oversized e cropped feminino" />
+        </div> : product && selectedVariant && zoomOpen ? <div className="product-gallery-view">
+          <div className="product-gallery-heading">
+            <DialogTitle className="size-chart-title">Imagem ampliada</DialogTitle>
+            <DialogDescription className="size-chart-description">{product.name}</DialogDescription>
+            <button type="button" className="size-chart-back" onClick={() => setZoomOpen(false)}><ArrowLeft size={17} />Voltar para a peça</button>
+          </div>
+          <div className="image-zoom-visual"><Shirt product={product} cut={selectedCut} photo={images[index]} priority /></div>
+        </div> : product && selectedVariant && <>
+          <div className="detail-visual">
+            {images.length > 1 && <span className="photo-counter mono">{String(index + 1).padStart(2, "0")} / {String(images.length).padStart(2, "0")}</span>}
+            <Shirt product={product} cut={selectedCut} photo={images[index]} priority />
+            <button type="button" className="detail-zoom-trigger icon-button" aria-label={`Ampliar imagem de ${product.name}`} onClick={() => setZoomOpen(true)}><ZoomIn size={19} /></button>
+            {images.length > 1 && <div className="detail-photo-arrows"><button type="button" className="icon-button" aria-label="Foto anterior" onClick={() => goTo(index - 1)}><ArrowLeft size={18} /></button><button type="button" className="icon-button" aria-label="Próxima foto" onClick={() => goTo(index + 1)}><ArrowRight size={18} /></button></div>}
+            {images.length > 1 && <div className="product-carousel-controls detail-photo-dots" aria-label={`Fotos de ${product.name}`}>{images.map((image, imageIndex) => <button type="button" key={`${imageIndex}-${image.slice(-12)}`} className={imageIndex === index ? "active" : ""} aria-label={`Mostrar foto ${imageIndex + 1} de ${images.length}`} aria-pressed={imageIndex === index} onClick={() => setIndex(imageIndex)}><span /></button>)}</div>}
+          </div>
+          <div className="detail-info">
+            <span className="eyebrow">MIDNIGH7 WEAR / {selectedType.toUpperCase()} / EDIÇÃO {product.edition}</span>
+            <DialogTitle>{product.name}</DialogTitle>
+            <DialogDescription>Consulte os tamanhos e condições do lote pelo WhatsApp.</DialogDescription>
+            <span className="field-title">TIPO DE PEÇA</span>
+            <div className="fit-tabs variant-tabs">{variants.map(variant => <button className={`variant-tab ${variant.type === selectedType ? "selected" : ""}`} type="button" key={variant.type} onClick={() => { setSelectedType(variant.type); setSelectedCut(variant.cuts[0]); }}>{variant.type}</button>)}</div>
+            <span className="field-title">CORTE DISPONÍVEL</span>
+            <div className="fit-tabs variant-tabs">{selectedVariant.cuts.map(availableCut => <button className={`variant-tab ${availableCut === selectedCut ? "selected" : ""}`} type="button" key={availableCut} onClick={() => setSelectedCut(availableCut)}>{availableCut}</button>)}</div>
+            <button type="button" className="button size-chart-trigger" onClick={() => setSizeChartOpen(true)}><Ruler size={19} />Tabela de medidas</button>
+            <div className="detail-note"><span className="gold-label">VENDA POR LOTE</span><p>As peças são produzidas em lotes. Fale com a gente para reservar a sua.</p></div>
+            <a className="button button-gold" href={whatsappUrl(product)} target="_blank" rel="noopener noreferrer"><ShoppingBag size={19} />Pedir pelo WhatsApp<ArrowUpRight size={19} /></a>
+            <p className="mockup-note">Imagens de referência das estampas.</p>
+          </div>
+        </>}
+      </DialogContent>
+    </Dialog>
+  </>;
 }
 
 export default function RoupasCatalog({ content }: { content: ClubContent }) {
