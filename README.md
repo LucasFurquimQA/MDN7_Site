@@ -101,9 +101,12 @@ publicado e proteja pelo menos os caminhos `/admin*`, `/api/content*` e
 `/api/images*` (necessário para autorizar o envio de fotos). Não proteja
 `/media*`: esse caminho entrega as imagens públicas exibidas no catálogo.
 Crie uma política que permita somente o e-mail usado em `ADMIN_EMAIL`.
-O Access injeta `Cf-Access-Authenticated-User-Email`; o Worker usa esse
-valor para autorizar o painel e as gravações. Em desenvolvimento, o adaptador
-local simula exatamente esse mesmo cabeçalho usando `ADMIN_EMAIL`.
+O Worker valida a assinatura, o emissor, a audiência (AUD) e a validade do JWT
+`Cf-Access-Jwt-Assertion` e só então compara o e-mail com `ADMIN_EMAIL`.
+Configure no Worker as variáveis `CF_ACCESS_TEAM_DOMAIN` (ex.: `suaequipe.cloudflareaccess.com`)
+e `CF_ACCESS_AUD` (Application Audience Tag da aplicação no Access). Sem elas, o
+login do painel fica bloqueado em produção. Em desenvolvimento, o adaptador local
+simula o cabeçalho de e-mail usando `ADMIN_EMAIL`.
 
 Proteja também o domínio de origem do Worker ou desative o acesso direto ao
 `workers.dev` quando usar domínio próprio. Caso contrário, alguém poderia
