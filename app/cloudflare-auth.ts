@@ -73,8 +73,8 @@ function decodeJson<T>(value: string): T {
 async function loadKeys(teamDomain: string): Promise<Jwk[]> {
   const url = `https://${teamDomain}/cdn-cgi/access/certs`;
   if (jwksCache && jwksCache.url === url && jwksCache.expires > Date.now()) return jwksCache.keys;
-  const response = await fetch(url);
-  if (!response.ok) throw new Error("Unable to load Cloudflare Access keys");
+  const response = await fetch(url, { headers: { accept: "application/json" } });
+  if (!response.ok) throw new Error(`chaves do Access indisponíveis (HTTP ${response.status} em ${teamDomain})`);
   const { keys } = (await response.json()) as { keys?: Jwk[] };
   if (!Array.isArray(keys)) throw new Error("Invalid Cloudflare Access keys");
   jwksCache = { url, keys, expires: Date.now() + JWKS_TTL_MS };
