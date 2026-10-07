@@ -37,7 +37,7 @@ export default function PartnersEditor({ initial, available }: { initial: Partne
     if (!draft.logo) { setError(true); setFeedback("Envie o logo do parceiro."); return; }
     setBusy(true); setError(false); setFeedback("");
     try {
-      const { partner } = await request(editingId ? "PUT" : "POST", "/api/partners", editingId ? { ...draft, id: editingId } : draft);
+      const { partner } = await request(editingId ? "PUT" : "POST", "/api/content/partners", editingId ? { ...draft, id: editingId } : draft);
       if (!partner) throw new Error("Não foi possível salvar.");
       setPartners(list => editingId ? list.map(p => p.id === partner.id ? partner : p) : [...list, partner]);
       reset();
@@ -48,7 +48,7 @@ export default function PartnersEditor({ initial, available }: { initial: Partne
     if (busy || !window.confirm(`Excluir o parceiro "${partner.nome}"?`)) return;
     setBusy(true); setError(false); setFeedback("");
     try {
-      await request("DELETE", `/api/partners?id=${encodeURIComponent(partner.id)}`);
+      await request("DELETE", `/api/content/partners?id=${encodeURIComponent(partner.id)}`);
       setPartners(list => list.filter(p => p.id !== partner.id));
       if (editingId === partner.id) reset();
       setFeedback("Parceiro excluído.");
