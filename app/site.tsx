@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUpRight, Check, Menu, X } from "lucide-react";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ClubContent, instagramUsername, Member } from "@/lib/club";
-const links = [{ id: "o-grupo", title: "O grupo", href: "#o-grupo" }, { id: "membros", title: "Referências", href: "#membros" }, { id: "participar", title: "Como participar", href: "#participar" }, { id: "roupas", title: "Midnigh7 Wear", href: "/7wear" }];
+const links = [{ id: "o-grupo", title: "O grupo", href: "#o-grupo" }, { id: "membros", title: "Referências", href: "#membros" }, { id: "participar", title: "Como participar", href: "#participar" }, { id: "roupas", title: "Midnigh7 Wear", href: "/7wear" }, { id: "parceiros", title: "Parceiros", href: "/parceiros" }];
 // Auto-discovers every image inside app/images/hero at build time — drop a new photo
 // in that folder and it's picked up automatically, no code changes needed.
 const heroModules = import.meta.glob("./images/hero/*.{jpg,jpeg,png,webp}", { eager: true, import: "default", query: "?url" }) as Record<string, string>;

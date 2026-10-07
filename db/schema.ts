@@ -4,3 +4,12 @@ export const siteContent = sqliteTable("site_content", {
   content: text("content").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
+export const partners = sqliteTable("partners", {
+  id: text("id").primaryKey(),
+  nome: text("nome").notNull(),
+  descricao: text("descricao").notNull(),
+  logo: text("logo").notNull(),
+  instagram: text("instagram").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});

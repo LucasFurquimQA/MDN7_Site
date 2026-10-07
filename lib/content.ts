@@ -12,7 +12,7 @@ export async function isAdmin() {
   const admin = clubEnv().ADMIN_EMAIL;
   return !!(user && admin && user.email.trim().toLowerCase() === admin.trim().toLowerCase());
 }
-const storedImagePath = /^(?:\/api\/images\?key=photos\/[0-9a-f-]{36}\.(?:jpg|png|webp|gif)|\/media\?key=photos\/[0-9a-f-]{36}\.(?:jpg|png|webp|gif))$/;
+export const storedImagePath = /^(?:\/api\/images\?key=photos\/[0-9a-f-]{36}\.(?:jpg|png|webp|gif)|\/media\?key=photos\/[0-9a-f-]{36}\.(?:jpg|png|webp|gif))$/;
 const photoSchema = z.string().max(2_000_000).refine(value => !value || /^data:image\/(?:jpeg|png|webp|gif);base64,[A-Za-z0-9+/]+=*$/.test(value) || storedImagePath.test(value), "Envie uma foto válida.");
 const uploadedPhotoSchema = photoSchema.refine(value => !!value, "Envie uma foto válida.");
 const photosSchema = z.object({ images: z.array(uploadedPhotoSchema).max(MAX_PIECE_PHOTOS).default([]), cover: z.number().int().min(0).max(MAX_PIECE_PHOTOS - 1).default(0) });

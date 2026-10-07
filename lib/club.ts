@@ -24,6 +24,7 @@ export function instagramUsername(value: string): string | null {
   return username.toLowerCase();
 }
 export function instagramUrl(value: string) { const username = instagramUsername(value); return username ? `https://www.instagram.com/${username}/` : ""; }
+export type Partner = { id: string; nome: string; descricao: string; logo: string; instagram: string; created_at: string; updated_at: string };
 export type Fit = "oversized" | "babylook";
 export const MAX_PIECE_PHOTOS = 4;
 export type ClothingPhotos = { images: string[]; cover: number };
