@@ -108,9 +108,12 @@ e `CF_ACCESS_AUD` (Application Audience Tag da aplicação no Access). Sem elas,
 login do painel fica bloqueado em produção. Em desenvolvimento, o adaptador local
 simula o cabeçalho de e-mail usando `ADMIN_EMAIL`.
 
-Proteja também o domínio de origem do Worker ou desative o acesso direto ao
-`workers.dev` quando usar domínio próprio. Caso contrário, alguém poderia
-contornar a política do Access acessando outra URL de origem.
+O `workers.dev` e os preview URLs ficam desativados pela configuração gerada no
+build (`workers_dev: false` e `preview_urls: false` em `vite.config.ts`), então um
+novo deploy não os reativa. O `www` redireciona (301) para o domínio principal.
+Os cabeçalhos de segurança (HSTS, `X-Frame-Options`, `nosniff`, `Referrer-Policy`,
+`Permissions-Policy` e uma CSP de `frame-ancestors`) são aplicados em `worker/index.ts`.
+Se o painel recusar o login, o motivo aparece nos logs do Worker (`[access] token recusado`).
 
 Depois de configurar o Access, defina `ADMIN_EMAIL` como variável protegida
 no Worker e publique novamente. Não coloque essa variável em

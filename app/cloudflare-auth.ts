@@ -22,7 +22,9 @@ export async function getCloudflareUser(): Promise<CloudflareUser | null> {
   const audience = access.CF_ACCESS_AUD?.trim();
 
   if (teamDomain && audience) {
-    const { email } = await verifyAccessJwt(requestHeaders.get(ACCESS_JWT_HEADER), teamDomain, audience);
+    const jwt = requestHeaders.get(ACCESS_JWT_HEADER);
+    const { email, reason } = await verifyAccessJwt(jwt, teamDomain, audience);
+    if (!email && jwt) console.warn(`[access] token recusado: ${reason}`);
     return email ? { email } : null;
   }
 
@@ -32,27 +34,6 @@ export async function getCloudflareUser(): Promise<CloudflareUser | null> {
     return email ? { email } : null;
   }
   return null;
-}
-
-export async function requireCloudflareUser(_returnTo: string): Promise<CloudflareUser | null> {
-  return getCloudflareUser();
-}
-
-// Motivo não sensível da recusa, exibido no painel para facilitar o diagnóstico.
-export async function accessHint(): Promise<string> {
-  const access = env as unknown as AccessEnv;
-  if (!normalizeTeamDomain(access.CF_ACCESS_TEAM_DOMAIN) || !access.CF_ACCESS_AUD?.trim()) {
-    return "Configuração ausente no Worker: defina CF_ACCESS_TEAM_DOMAIN e CF_ACCESS_AUD e publique novamente.";
-  }
-  const teamDomain = normalizeTeamDomain(access.CF_ACCESS_TEAM_DOMAIN)!;
-  const audience = access.CF_ACCESS_AUD!.trim();
-  const requestHeaders = await headers();
-  if (!requestHeaders.get(ACCESS_JWT_HEADER)) {
-    return "O Cloudflare Access não enviou o token de login. Confirme que este endereço e caminho estão na aplicação do Access.";
-  }
-  const { email, reason } = await verifyAccessJwt(requestHeaders.get(ACCESS_JWT_HEADER), teamDomain, audience);
-  if (email) return "Login válido, mas o e-mail autenticado é diferente do configurado em ADMIN_EMAIL.";
-  return `Token do Access recusado (${reason}).`;
 }
 
 function normalizeTeamDomain(value: string | undefined): string | null {
@@ -73,8 +54,8 @@ function decodeJson<T>(value: string): T {
 async function loadKeys(teamDomain: string): Promise<Jwk[]> {
   const url = `https://${teamDomain}/cdn-cgi/access/certs`;
   if (jwksCache && jwksCache.url === url && jwksCache.expires > Date.now()) return jwksCache.keys;
-  const response = await fetch(url);
-  if (!response.ok) throw new Error("Unable to load Cloudflare Access keys");
+  const response = await fetch(url, { headers: { accept: "application/json" } });
+  if (!response.ok) throw new Error(`chaves do Access indisponíveis (HTTP ${response.status} em ${teamDomain})`);
   const { keys } = (await response.json()) as { keys?: Jwk[] };
   if (!Array.isArray(keys)) throw new Error("Invalid Cloudflare Access keys");
   jwksCache = { url, keys, expires: Date.now() + JWKS_TTL_MS };

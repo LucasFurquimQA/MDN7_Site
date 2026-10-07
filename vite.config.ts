@@ -36,9 +36,10 @@ export default defineConfig(async ({ mode }) => {
     );
   }
   const localBindingConfig = {
-    main: "vinext/server/fetch-handler",
+    main: "./worker/index.ts",
     compatibility_flags: ["nodejs_compat"],
     workers_dev: false,
+    routes: [{ pattern: "www.midnigh7.club/*", zone_name: "midnigh7.club" }],
     preview_urls: false,
     d1_databases: d1
       ? [
