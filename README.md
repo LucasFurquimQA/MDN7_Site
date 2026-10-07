@@ -18,6 +18,10 @@ Os dados importados são salvos com o botão Salvar alterações. Uma troca de p
 
 As imagens originais do usuário estão em `public/images`. A exibição recorta apenas o enquadramento das referências para manter as anotações de produção fora do catálogo. Os arquivos originais não foram editados. O cenário noturno foi gerado para o site.
 
+## Parceiros
+
+A página pública `/parceiros` lista os parceiros cadastrados em `/admin/parceiros` (link no painel `/admin`). Cada parceiro tem nome, logo, descrição e Instagram, e fica na tabela D1 `partners` (`id`, `nome`, `descricao`, `logo`, `instagram`, `created_at`, `updated_at`). Os logos usam o mesmo upload para o R2 das demais imagens. A tabela é criada automaticamente no primeiro acesso; a migração `drizzle/0001_partners.sql` também é aplicada por `pnpm db:initialize:remote`.
+
 ## Desenvolvimento
 
 O projeto usa pnpm, Vinext, Cloudflare Workers, D1 e R2. As variáveis locais seguem `.env`; os valores de produção são gerenciados no painel do Worker.
