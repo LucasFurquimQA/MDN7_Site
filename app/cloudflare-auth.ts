@@ -1,6 +1,5 @@
 import { env } from "cloudflare:workers";
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 
 export type CloudflareUser = {
   email: string;
@@ -35,16 +34,21 @@ export async function getCloudflareUser(): Promise<CloudflareUser | null> {
   return null;
 }
 
-export async function requireCloudflareUser(returnTo: string): Promise<CloudflareUser> {
-  const user = await getCloudflareUser();
-  if (user) return user;
-
-  redirect(`/cdn-cgi/access/login?redirect_url=${encodeURIComponent(safeReturnPath(returnTo))}`);
+export async function requireCloudflareUser(_returnTo: string): Promise<CloudflareUser | null> {
+  return getCloudflareUser();
 }
 
-function safeReturnPath(value: string): string {
-  if (!value.startsWith("/") || value.startsWith("//")) return "/";
-  return value;
+// Motivo não sensível da recusa, exibido no painel para facilitar o diagnóstico.
+export async function accessHint(): Promise<string> {
+  const access = env as unknown as AccessEnv;
+  if (!normalizeTeamDomain(access.CF_ACCESS_TEAM_DOMAIN) || !access.CF_ACCESS_AUD?.trim()) {
+    return "Configuração ausente no Worker: defina CF_ACCESS_TEAM_DOMAIN e CF_ACCESS_AUD e publique novamente.";
+  }
+  const requestHeaders = await headers();
+  if (!requestHeaders.get(ACCESS_JWT_HEADER)) {
+    return "O Cloudflare Access não enviou o token de login. Confirme que este endereço e caminho estão na aplicação do Access.";
+  }
+  return "Token do Access recusado. Confira se CF_ACCESS_TEAM_DOMAIN e CF_ACCESS_AUD correspondem à aplicação e se o e-mail é o de ADMIN_EMAIL.";
 }
 
 function normalizeTeamDomain(value: string | undefined): string | null {
