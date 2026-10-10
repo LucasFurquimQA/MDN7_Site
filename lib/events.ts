@@ -33,6 +33,26 @@ export function parseFeed(xml: string): Candidate[] {
   });
 }
 
+const FRESH_DAYS = 14;
+const MONTHS = ["janeiro", "fevereiro", "marco", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+
+// Procura uma data explícita do evento ("dia 26 de julho", "26/07") e descarta se já passou.
+export function mentionsPastDate(item: Candidate, now = new Date()) {
+  const text = normalize(item.text);
+  const dates: Date[] = [];
+  const toDate = (day: number, month: number, year?: number) => {
+    if (day < 1 || day > 31 || month < 0 || month > 11) return;
+    let y = year ?? item.published.getUTCFullYear();
+    if (y < 100) y += 2000;
+    let date = new Date(Date.UTC(y, month, day, 23, 59));
+    if (year === undefined && date.getTime() < item.published.getTime() - 60 * 86_400_000) date = new Date(Date.UTC(y + 1, month, day, 23, 59));
+    dates.push(date);
+  };
+  for (const m of text.matchAll(/\b(\d{1,2})\s*(?:o|º)?\s+de\s+(janeiro|fevereiro|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)(?:\s+de\s+(\d{4}))?/g)) toDate(+m[1], MONTHS.indexOf(m[2]), m[3] ? +m[3] : undefined);
+  for (const m of text.matchAll(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/g)) toDate(+m[1], +m[2] - 1, m[3] ? +m[3] : undefined);
+  return dates.length > 0 && Math.max(...dates.map(date => date.getTime())) < now.getTime() - 86_400_000;
+}
+
 export function classify(item: Candidate, city: string, requireCity = true) {
   const title = normalize(item.title);
   if (NEGATIVE.test(title)) return false;
@@ -72,7 +92,7 @@ async function ensureTable(db: D1Database) {
 
 export async function collectEvents(db: D1Database) {
   await ensureTable(db);
-  const cutoff = Date.now() - 21 * 86_400_000;
+  const cutoff = Date.now() - FRESH_DAYS * 86_400_000;
   const now = new Date().toISOString();
   const rows: AutoEvent[] = [];
   const keys: string[] = [];
@@ -96,13 +116,13 @@ export async function collectEvents(db: D1Database) {
     for (const item of result.items) {
       scanned++;
       const key = titleKey(item.title);
-      if (item.published.getTime() < cutoff || seen.has(key) || !classify(item, result.source.city, result.source.requireCity)) continue;
+      if (item.published.getTime() < cutoff || seen.has(key) || mentionsPastDate(item) || !classify(item, result.source.city, result.source.requireCity)) continue;
       seen.add(key);
       keys.push(key);
       rows.push({ id: crypto.randomUUID(), title: item.title.slice(0, 220), url: item.url, source: item.source.slice(0, 80), city: result.source.city, published_at: item.published.toISOString(), created_at: now });
     }
   }  const statements = rows.map((row, i) => db.prepare("INSERT OR IGNORE INTO auto_events (id, title, url, source, city, dedupe_key, published_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").bind(row.id, row.title, row.url, row.source, row.city, keys[i], row.published_at, row.created_at));
-  statements.push(db.prepare("DELETE FROM auto_events WHERE published_at < ?").bind(new Date(Date.now() - 90 * 86_400_000).toISOString()));
+  statements.push(db.prepare("DELETE FROM auto_events WHERE published_at < ?").bind(new Date(Date.now() - 30 * 86_400_000).toISOString()));
   const results = await db.batch(statements);
   const added = results.slice(0, rows.length).reduce((sum, result) => sum + (result.meta.changes ?? 0), 0);
   return { found: rows.length, added, scanned, feedsOk, feedsFailed, lastError };
@@ -111,10 +131,11 @@ export async function collectEvents(db: D1Database) {
 export async function listEvents(db: D1Database, city?: string): Promise<{ events: AutoEvent[]; available: boolean }> {
   try {
     await ensureTable(db);
-    const base = "SELECT id, title, url, source, city, published_at, created_at FROM auto_events";
+    const since = new Date(Date.now() - FRESH_DAYS * 86_400_000).toISOString();
+    const base = "SELECT id, title, url, source, city, published_at, created_at FROM auto_events WHERE published_at >= ?";
     const statement = city && EVENT_CITIES.includes(city)
-      ? db.prepare(`${base} WHERE city = ? ORDER BY published_at DESC LIMIT 100`).bind(city)
-      : db.prepare(`${base} ORDER BY published_at DESC LIMIT 100`);
+      ? db.prepare(`${base} AND city = ? ORDER BY published_at DESC LIMIT 100`).bind(since, city)
+      : db.prepare(`${base} ORDER BY published_at DESC LIMIT 100`).bind(since);
     const { results } = await statement.all<AutoEvent>();
     return { events: results, available: true };
   } catch (error) {
