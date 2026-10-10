@@ -12,10 +12,10 @@ export default function EventsEditor({ initial, available }: { initial: AutoEven
   async function refresh() {
     setBusy(true); setError(false); setFeedback("Buscando notícias… isso pode levar cerca de um minuto.");
     try {
-      const response = await fetch("/api/events", { method: "POST" });
+      const response = await fetch("/api/content/events", { method: "POST" });
       const data = await response.json() as { found?: number; error?: string };
       if (!response.ok) throw new Error(data.error || "Não foi possível atualizar agora.");
-      const next = await fetch("/api/events", { cache: "no-store" }).then(r => r.json() as Promise<{ events: AutoEvent[] }>);
+      const next = await fetch("/api/content/events", { cache: "no-store" }).then(r => r.json() as Promise<{ events: AutoEvent[] }>);
       setEvents(next.events);
       setFeedback(`Atualização concluída: ${data.found ?? 0} evento(s) encontrados.`);
     } catch (e) {
@@ -27,7 +27,7 @@ export default function EventsEditor({ initial, available }: { initial: AutoEven
     if (!window.confirm(`Excluir "${event.title}"?`)) return;
     setBusy(true); setError(false);
     try {
-      const response = await fetch(`/api/events?id=${event.id}`, { method: "DELETE" });
+      const response = await fetch(`/api/content/events?id=${event.id}`, { method: "DELETE" });
       if (!response.ok) throw new Error("Não foi possível excluir agora.");
       setEvents(current => current.filter(item => item.id !== event.id));
       setFeedback("Evento excluído.");
