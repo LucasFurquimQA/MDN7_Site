@@ -1,6 +1,6 @@
 export type AutoEvent = { id: string; title: string; url: string; source: string; city: string; published_at: string; created_at: string };
 
-export const EVENT_CITIES = ["São Paulo", "Itatiba", "Tremembé", "Piracicaba", "Birigui", "Nova Odessa", "Indaiatuba", "Mogi Guaçu", "Itapevi", "Ribeirão Preto", "Bauru"];
+export const EVENT_CITIES = ["São Paulo", "Itatiba", "Tremembé", "Piracicaba", "Birigui", "Nova Odessa", "Indaiatuba", "Mogi Guaçu", "Itapevi", "Ribeirão Preto", "Bauru", "São Roque"];
 
 const TOPIC = /encontro de (carros|motos|autom|ve[ií]culos)|car meet|carros antigos|autom[oó]veis antigos|carros cl[aá]ssicos|autom[oó]veis cl[aá]ssicos|autom[oó]vel|automobil|arrancada de (carros|motos)|racha|drift|stock car|motovelocidade|kart|rally|rali|track ?day|passeio de (carros|motos|motociclistas)|moto ?clube|motociclismo|motociclistas|motos|tuning|rebaixados|hot ?rod|fusca|auto ?show|expo ?(auto|moto)|old ?cars|ve[ií]culos antigos|offroad|off-road|trilha/i;
 const EVENT = /encontro|exposi[cç][aã]o|festival|show|corrida|etapa|campeonato|evento|copa|feira|passeio|arrancada|concentra[cç][aã]o|moto ?fest|motofest|rally|rali|competi[cç][aã]o|exposi|desfile|trackday|track day|abertura|inscri[cç]/i;
