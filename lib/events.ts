@@ -34,23 +34,46 @@ export function parseFeed(xml: string): Candidate[] {
 }
 
 const FRESH_DAYS = 14;
+const DAY = 86_400_000;
 const MONTHS = ["janeiro", "fevereiro", "marco", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+const WEEKDAY_DAY = /(?:segunda|terca|quarta|quinta|sexta|sabado|domingo)(?:-feira)?[^a-z0-9]{0,3}\(?(\d{1,2})\)?(?![\d/:h])/g;
+const PAST_LANG = /\b(reuniu|reuniram|movimentou|movimentaram|aconteceu|realizou|encerrou|levou|atraiu|marcou|celebrou|agitou|movimenta|movimentam|agita|atrai|lota|lotou|balanco|resultado|campeao|vence|venceu|conquista|conquistou)\b/;
+const FUTURE_REL = /\b(neste|nesta|no proximo|na proxima|este|esta) (sabado|domingo|fim de semana|final de semana|sexta|semana)\b|\bamanha\b|\bhoje\b/;
+const FUTURE_VERB = /\b(vai acontecer|acontecera|sera realizad[oa]|abre inscricoes|inscricoes abertas|proxima edicao|proximo encontro|esta chegando|chega a)\b/;
 
-// Procura uma data explícita do evento ("dia 26 de julho", "26/07") e descarta se já passou.
-export function mentionsPastDate(item: Candidate, now = new Date()) {
+// Retorna até quando a matéria deve aparecer, ou null se o evento já passou ou não dá para saber que é futuro.
+export function upcomingUntil(item: Candidate, now = new Date()): string | null {
   const text = normalize(item.text);
+  const title = normalize(item.title);
+  const published = item.published;
   const dates: Date[] = [];
   const toDate = (day: number, month: number, year?: number) => {
     if (day < 1 || day > 31 || month < 0 || month > 11) return;
-    let y = year ?? item.published.getUTCFullYear();
+    let y = year ?? published.getUTCFullYear();
     if (y < 100) y += 2000;
     let date = new Date(Date.UTC(y, month, day, 23, 59));
-    if (year === undefined && date.getTime() < item.published.getTime() - 60 * 86_400_000) date = new Date(Date.UTC(y + 1, month, day, 23, 59));
+    if (year === undefined && date.getTime() < published.getTime() - 60 * DAY) date = new Date(Date.UTC(y + 1, month, day, 23, 59));
     dates.push(date);
   };
   for (const m of text.matchAll(/\b(\d{1,2})\s*(?:o|º)?\s+de\s+(janeiro|fevereiro|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)(?:\s+de\s+(\d{4}))?/g)) toDate(+m[1], MONTHS.indexOf(m[2]), m[3] ? +m[3] : undefined);
   for (const m of text.matchAll(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/g)) toDate(+m[1], +m[2] - 1, m[3] ? +m[3] : undefined);
-  return dates.length > 0 && Math.max(...dates.map(date => date.getTime())) < now.getTime() - 86_400_000;
+  for (const m of text.matchAll(WEEKDAY_DAY)) {
+    const day = +m[1];
+    if (day < 1 || day > 31) continue;
+    const month = day >= published.getUTCDate() ? published.getUTCMonth() : published.getUTCMonth() + 1;
+    toDate(day, month % 12, undefined);
+  }
+  if (dates.length) {
+    const last = Math.max(...dates.map(date => date.getTime()));
+    return last >= now.getTime() - DAY / 2 ? new Date(last + DAY).toISOString() : null;
+  }
+  if (PAST_LANG.test(title)) return null;
+  if (FUTURE_REL.test(text)) {
+    const until = published.getTime() + 6 * DAY;
+    return until >= now.getTime() ? new Date(until).toISOString() : null;
+  }
+  if (FUTURE_VERB.test(text)) return new Date(published.getTime() + FRESH_DAYS * DAY).toISOString();
+  return null;
 }
 
 export function classify(item: Candidate, city: string, requireCity = true) {
@@ -83,10 +106,16 @@ function sources(): Source[] {
   return [...portals, ...EVENT_CITIES.map(city => ({ city, requireCity: true, url: googleUrl(city) }))];
 }
 
-const createTable = "CREATE TABLE IF NOT EXISTS auto_events (id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL, url TEXT NOT NULL, source TEXT NOT NULL, city TEXT NOT NULL, dedupe_key TEXT NOT NULL UNIQUE, published_at TEXT NOT NULL, created_at TEXT NOT NULL)";
+const createTable = "CREATE TABLE IF NOT EXISTS auto_events (id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL, url TEXT NOT NULL, source TEXT NOT NULL, city TEXT NOT NULL, dedupe_key TEXT NOT NULL UNIQUE, published_at TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT)";
 let tableReady: Promise<unknown> | null = null;
 async function ensureTable(db: D1Database) {
-  tableReady ??= db.prepare(createTable).run().catch(error => { tableReady = null; throw error; });
+  tableReady ??= (async () => {
+    await db.prepare(createTable).run();
+    try {
+      await db.prepare("ALTER TABLE auto_events ADD COLUMN expires_at TEXT").run();
+      await db.prepare("DELETE FROM auto_events WHERE expires_at IS NULL").run();
+    } catch { /* a coluna já existe */ }
+  })().catch(error => { tableReady = null; throw error; });
   await tableReady;
 }
 
@@ -96,6 +125,7 @@ export async function collectEvents(db: D1Database) {
   const now = new Date().toISOString();
   const rows: AutoEvent[] = [];
   const keys: string[] = [];
+  const expires: string[] = [];
   const seen = new Set<string>();
   let feedsOk = 0, feedsFailed = 0, scanned = 0;
   let lastError = "";
@@ -116,13 +146,17 @@ export async function collectEvents(db: D1Database) {
     for (const item of result.items) {
       scanned++;
       const key = titleKey(item.title);
-      if (item.published.getTime() < cutoff || seen.has(key) || mentionsPastDate(item) || !classify(item, result.source.city, result.source.requireCity)) continue;
+      if (item.published.getTime() < cutoff || seen.has(key) || !classify(item, result.source.city, result.source.requireCity)) continue;
+      const until = upcomingUntil(item);
+      if (!until) continue;
       seen.add(key);
       keys.push(key);
+      expires.push(until);
       rows.push({ id: crypto.randomUUID(), title: item.title.slice(0, 220), url: item.url, source: item.source.slice(0, 80), city: result.source.city, published_at: item.published.toISOString(), created_at: now });
     }
-  }  const statements = rows.map((row, i) => db.prepare("INSERT OR IGNORE INTO auto_events (id, title, url, source, city, dedupe_key, published_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").bind(row.id, row.title, row.url, row.source, row.city, keys[i], row.published_at, row.created_at));
-  statements.push(db.prepare("DELETE FROM auto_events WHERE published_at < ?").bind(new Date(Date.now() - 30 * 86_400_000).toISOString()));
+  }
+  const statements = rows.map((row, i) => db.prepare("INSERT OR IGNORE INTO auto_events (id, title, url, source, city, dedupe_key, published_at, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(row.id, row.title, row.url, row.source, row.city, keys[i], row.published_at, row.created_at, expires[i]));
+  statements.push(db.prepare("DELETE FROM auto_events WHERE expires_at < ?").bind(new Date(Date.now() - 7 * 86_400_000).toISOString()));
   const results = await db.batch(statements);
   const added = results.slice(0, rows.length).reduce((sum, result) => sum + (result.meta.changes ?? 0), 0);
   return { found: rows.length, added, scanned, feedsOk, feedsFailed, lastError };
@@ -131,8 +165,8 @@ export async function collectEvents(db: D1Database) {
 export async function listEvents(db: D1Database, city?: string): Promise<{ events: AutoEvent[]; available: boolean }> {
   try {
     await ensureTable(db);
-    const since = new Date(Date.now() - FRESH_DAYS * 86_400_000).toISOString();
-    const base = "SELECT id, title, url, source, city, published_at, created_at FROM auto_events WHERE published_at >= ?";
+    const since = new Date().toISOString();
+    const base = "SELECT id, title, url, source, city, published_at, created_at FROM auto_events WHERE expires_at >= ?";
     const statement = city && EVENT_CITIES.includes(city)
       ? db.prepare(`${base} AND city = ? ORDER BY published_at DESC LIMIT 100`).bind(since, city)
       : db.prepare(`${base} ORDER BY published_at DESC LIMIT 100`).bind(since);
