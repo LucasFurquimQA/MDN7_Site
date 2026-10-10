@@ -13,11 +13,13 @@ export default function EventsEditor({ initial, available }: { initial: AutoEven
     setBusy(true); setError(false); setFeedback("Buscando notícias… isso pode levar cerca de um minuto.");
     try {
       const response = await fetch("/api/content/events", { method: "POST" });
-      const data = await response.json() as { found?: number; error?: string };
+      const data = await response.json() as { found?: number; added?: number; scanned?: number; feedsOk?: number; feedsFailed?: number; lastError?: string; error?: string };
       if (!response.ok) throw new Error(data.error || "Não foi possível atualizar agora.");
       const next = await fetch("/api/content/events", { cache: "no-store" }).then(r => r.json() as Promise<{ events: AutoEvent[] }>);
       setEvents(next.events);
-      setFeedback(`Atualização concluída: ${data.found ?? 0} evento(s) encontrados.`);
+      const failed = data.feedsFailed ? ` ${data.feedsFailed} de ${(data.feedsOk ?? 0) + data.feedsFailed} buscas falharam (${data.lastError}).` : "";
+      setError(!data.feedsOk);
+      setFeedback(`Atualização concluída: ${data.scanned ?? 0} notícias analisadas, ${data.added ?? 0} novas adicionadas.${failed}`);
     } catch (e) {
       setError(true); setFeedback(e instanceof Error ? e.message : "Não foi possível atualizar agora.");
     } finally { setBusy(false); }
