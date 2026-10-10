@@ -20,13 +20,22 @@ const tag = (block: string, name: string) => block.match(new RegExp(`<${name}[^>
 
 type Candidate = { title: string; url: string; source: string; published: Date; text: string };
 
+// O Bing embrulha o link da matéria; o endereço real fica no parâmetro "url".
+function realUrl(link: string) {
+  try {
+    const parsed = new URL(link);
+    if (parsed.hostname.endsWith("bing.com") && parsed.pathname.includes("apiclick")) return parsed.searchParams.get("url") || link;
+  } catch { /* link inválido */ }
+  return link;
+}
+
 export function parseFeed(xml: string): Candidate[] {
   const items = xml.match(/<item[\s>][\s\S]*?<\/item>/gi) ?? [];
   return items.flatMap(block => {
-    const source = stripTags(tag(block, "source"));
+    const source = stripTags(tag(block, "source") || tag(block, "News:Source"));
     let title = stripTags(tag(block, "title"));
     if (source && title.endsWith(` - ${source}`)) title = title.slice(0, -(source.length + 3)).trim();
-    const url = stripTags(tag(block, "link"));
+    const url = realUrl(stripTags(tag(block, "link")));
     const published = new Date(stripTags(tag(block, "pubDate")));
     if (!title || !/^https?:\/\//i.test(url) || Number.isNaN(published.getTime())) return [];
     return [{ title, url, source: source || new URL(url).hostname.replace(/^www\./, ""), published, text: `${title} ${stripTags(tag(block, "description"))}` }];
@@ -81,16 +90,19 @@ export function classify(item: Candidate, city: string, requireCity = true) {
   if (NEGATIVE.test(title)) return false;
   if (!TOPIC.test(title) || !EVENT.test(title)) return false;
   if (!requireCity) return true;
-  return new RegExp(`(^|[^\\p{L}])${city.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|[^\\p{L}])`, "u").test(item.text.toLowerCase());
+  const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const names = [city, city.toUpperCase()].map(escape).join("|");
+  return new RegExp(`(^|[^\\p{L}])(${names})($|[^\\p{L}])`, "u").test(item.text);
 }
 
 const titleKey = (title: string) => normalize(title).replace(/[^a-z0-9]+/g, " ").trim().slice(0, 120);
 
 type Source = { city: string; url: string; requireCity: boolean };
 
-function googleUrl(city: string) {
-  const query = `("encontro de carros" OR "encontro de motos" OR "carros antigos" OR automobilismo OR "exposição de carros" OR motofest OR "stock car" OR "festival automotivo") "${city}" when:14d`;
-  return `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=pt-BR&gl=BR&ceid=BR:pt-419`;
+const BING_QUERIES = ["encontro de carros", "automobilismo motos"];
+
+function bingUrl(city: string, query: string) {
+  return `https://www.bing.com/news/search?q=${encodeURIComponent(`${query} ${city}`)}&format=rss&setmkt=pt-BR&qft=${encodeURIComponent('interval="9"')}`;
 }
 
 const PORTALS: { city: string; host: string }[] = [
@@ -103,7 +115,8 @@ const PORTAL_QUERIES = ["encontro de carros", "carros antigos", "automobilismo"]
 
 function sources(): Source[] {
   const portals = PORTALS.flatMap(({ city, host }) => PORTAL_QUERIES.map(query => ({ city, requireCity: true, url: `https://${host}/?s=${encodeURIComponent(query)}&feed=rss2` })));
-  return [...portals, ...EVENT_CITIES.map(city => ({ city, requireCity: true, url: googleUrl(city) }))];
+  const bing = EVENT_CITIES.flatMap(city => BING_QUERIES.map(query => ({ city, requireCity: true, url: bingUrl(city, query) })));
+  return [...portals, ...bing];
 }
 
 const createTable = "CREATE TABLE IF NOT EXISTS auto_events (id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL, url TEXT NOT NULL, source TEXT NOT NULL, city TEXT NOT NULL, dedupe_key TEXT NOT NULL UNIQUE, published_at TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT)";
