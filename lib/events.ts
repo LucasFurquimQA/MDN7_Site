@@ -58,7 +58,7 @@ const FUTURE_REL = /\b(neste|nesta|no proximo|na proxima|este|esta) (sabado|domi
 const FUTURE_VERB = /\b(vai acontecer|acontecera|sera realizad[oa]|abre inscricoes|inscricoes abertas|proxima edicao|proximo encontro|esta chegando|chega a)\b/;
 
 // Retorna até quando a matéria deve aparecer, ou null se o evento já passou ou não dá para saber que é futuro.
-export function upcomingUntil(item: Candidate, now = new Date()): string | null {
+export function upcomingUntil(item: Candidate, now = new Date(), explicitOnly = false): string | null {
   const text = normalize(item.text);
   const title = normalize(item.title);
   const published = item.published;
@@ -83,7 +83,7 @@ export function upcomingUntil(item: Candidate, now = new Date()): string | null 
     const last = Math.max(...dates.map(date => date.getTime()));
     return last >= now.getTime() - DAY / 2 ? new Date(last + DAY).toISOString() : null;
   }
-  if (PAST_LANG.test(title)) return null;
+  if (explicitOnly || PAST_LANG.test(title)) return null;
   if (FUTURE_REL.test(text)) {
     const until = published.getTime() + 6 * DAY;
     return until >= now.getTime() ? new Date(until).toISOString() : null;
@@ -92,8 +92,8 @@ export function upcomingUntil(item: Candidate, now = new Date()): string | null 
   return null;
 }
 
-export function classify(item: Candidate, city: string, requireCity = true) {
-  const title = normalize(item.title);
+export function classify(item: Candidate, city: string, requireCity = true, social = false) {
+  const title = normalize(social ? item.text : item.title);
   if (NEGATIVE.test(title)) return false;
   if (!TOPIC.test(title) || !EVENT.test(title)) return false;
   if (!requireCity) return true;
@@ -104,7 +104,26 @@ export function classify(item: Candidate, city: string, requireCity = true) {
 
 const titleKey = (title: string) => normalize(title).replace(/[^a-z0-9]+/g, " ").trim().slice(0, 120);
 
-type Source = { city: string; url: string; requireCity: boolean };
+type Source = { city: string; url: string; requireCity: boolean; social?: boolean };
+
+// Posts públicos de Instagram/Facebook que o Bing indexou; cobertura irregular, por isso é "melhor esforço".
+const SOCIAL_HOST = /(^|\.)(instagram|facebook)\.com$/i;
+function socialUrl(city: string) {
+  const query = `(site:instagram.com OR site:facebook.com) "encontro de carros" "${city}"`;
+  return `https://www.bing.com/search?q=${encodeURIComponent(query)}&format=rss&setmkt=pt-BR&count=20`;
+}
+function fixEncoding(value: string) {
+  if (!/Ã./.test(value)) return value;
+  try { return new TextDecoder("utf-8", { fatal: true }).decode(Uint8Array.from(value, ch => ch.charCodeAt(0))); } catch { return value; }
+}
+function socialItem(item: Candidate): Candidate | null {
+  try {
+    const host = new URL(item.url).hostname;
+    if (!SOCIAL_HOST.test(host)) return null;
+    const source = /instagram/i.test(host) ? "Instagram" : "Facebook";
+    return { ...item, source, title: fixEncoding(item.title).replace(/\s+[-|]\s+(Instagram|Facebook)$/i, "").trim(), text: fixEncoding(item.text), image: null };
+  } catch { return null; }
+}
 
 const BING_QUERIES = ["encontro de carros", "automobilismo motos"];
 
@@ -120,7 +139,8 @@ const PORTAL_QUERIES = ["encontro de carros", "carros antigos", "automobilismo"]
 function sources(): Source[] {
   const portals = PORTALS.flatMap(({ city, host }) => PORTAL_QUERIES.map(query => ({ city, requireCity: true, url: `https://${host}/?s=${encodeURIComponent(query)}&feed=rss2` })));
   const bing = EVENT_CITIES.flatMap(city => BING_QUERIES.map(query => ({ city, requireCity: true, url: bingUrl(city, query) })));
-  return [...portals, ...bing];
+  const social = EVENT_CITIES.map(city => ({ city, requireCity: true, social: true, url: socialUrl(city) }));
+  return [...portals, ...bing, ...social];
 }
 
 const createTable = "CREATE TABLE IF NOT EXISTS auto_events (id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL, url TEXT NOT NULL, source TEXT NOT NULL, city TEXT NOT NULL, dedupe_key TEXT NOT NULL UNIQUE, published_at TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT, image TEXT)";
@@ -149,7 +169,7 @@ export async function collectEvents(db: D1Database) {
   let lastError = "";
   const fetched = await Promise.all(sources().map(async source => {
     try {
-      const response = await fetch(source.url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; Midnigh7ClubEventsBot/1.0)" }, signal: AbortSignal.timeout(10000) });
+      const response = await fetch(source.url, { headers: { "User-Agent": source.social ? "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36" : "Mozilla/5.0 (compatible; Midnigh7ClubEventsBot/1.0)" }, signal: AbortSignal.timeout(10000) });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return { source, items: parseFeed(await response.text()) };
     } catch (error) {
@@ -161,11 +181,13 @@ export async function collectEvents(db: D1Database) {
   for (const result of fetched) {
     if (!result) continue;
     feedsOk++;
-    for (const item of result.items) {
+    for (const raw of result.items) {
+      const item = result.source.social ? socialItem(raw) : raw;
+      if (!item) continue;
       scanned++;
       const key = titleKey(item.title);
-      if (item.published.getTime() < cutoff || seen.has(key) || !classify(item, result.source.city, result.source.requireCity)) continue;
-      const until = upcomingUntil(item);
+      if (item.published.getTime() < cutoff || seen.has(key) || !classify(item, result.source.city, result.source.requireCity, result.source.social)) continue;
+      const until = upcomingUntil(item, new Date(), result.source.social);
       if (!until) continue;
       seen.add(key);
       keys.push(key);
