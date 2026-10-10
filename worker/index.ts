@@ -1,4 +1,5 @@
 import handler from "vinext/server/fetch-handler";
+import { collectEvents } from "../lib/events";
 
 const SECURITY_HEADERS: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
@@ -10,6 +11,9 @@ const SECURITY_HEADERS: Record<string, string> = {
 };
 
 export default {
+  async scheduled(_controller: unknown, env: { DB: D1Database }, ctx: { waitUntil(promise: Promise<unknown>): void }) {
+    ctx.waitUntil(collectEvents(env.DB).catch(error => console.error("Events collection failed", error instanceof Error ? error.message : "error")));
+  },
   async fetch(request: Request, env: unknown, ctx: unknown): Promise<Response> {
     const url = new URL(request.url);
     if (url.hostname.startsWith("www.")) {
