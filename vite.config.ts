@@ -41,6 +41,7 @@ export default defineConfig(async ({ mode }) => {
     workers_dev: false,
     routes: [{ pattern: "www.midnigh7.club/*", zone_name: "midnigh7.club" }],
     preview_urls: false,
+    triggers: { crons: ["0 12 1,15 * *"] },
     d1_databases: d1
       ? [
           {
