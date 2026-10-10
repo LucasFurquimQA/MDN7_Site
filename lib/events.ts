@@ -1,6 +1,6 @@
 export type AutoEvent = { id: string; title: string; url: string; source: string; city: string; published_at: string; created_at: string };
 
-export const EVENT_CITIES = ["Campinas", "Ribeirão Preto", "São José do Rio Preto", "Sorocaba", "Bauru", "Piracicaba", "Jundiaí", "Franca", "São Carlos", "Araraquara", "Presidente Prudente", "Marília", "Limeira"];
+export const EVENT_CITIES = ["São Paulo", "Itatiba", "Tremembé", "Piracicaba", "Birigui", "Nova Odessa", "Indaiatuba", "Mogi Guaçu", "Itapevi", "Ribeirão Preto", "Bauru"];
 
 const TOPIC = /encontro de (carros|motos|autom|ve[ií]culos)|car meet|carros antigos|autom[oó]veis antigos|carros cl[aá]ssicos|autom[oó]veis cl[aá]ssicos|autom[oó]vel|automobil|arrancada de (carros|motos)|racha|drift|stock car|motovelocidade|kart|rally|rali|track ?day|passeio de (carros|motos|motociclistas)|moto ?clube|motociclismo|motociclistas|motos|tuning|rebaixados|hot ?rod|fusca|auto ?show|expo ?(auto|moto)|old ?cars|ve[ií]culos antigos|offroad|off-road|trilha/i;
 const EVENT = /encontro|exposi[cç][aã]o|festival|show|corrida|etapa|campeonato|evento|copa|feira|passeio|arrancada|concentra[cç][aã]o|moto ?fest|motofest|rally|rali|competi[cç][aã]o|exposi|desfile|trackday|track day|abertura|inscri[cç]/i;
@@ -92,7 +92,7 @@ export function classify(item: Candidate, city: string, requireCity = true) {
   if (!requireCity) return true;
   const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const names = [city, city.toUpperCase()].map(escape).join("|");
-  return new RegExp(`(^|[^\\p{L}])(${names})($|[^\\p{L}])`, "u").test(item.text);
+  return new RegExp(`(^|[^\\p{L}])(${names})($|[^\\p{L}])`, "u").test(item.text.replace(/(estado|interior|governo|litoral|capital|regi[aã]o) (de|do|da) S[aã]o Paulo/gi, " "));
 }
 
 const titleKey = (title: string) => normalize(title).replace(/[^a-z0-9]+/g, " ").trim().slice(0, 120);
@@ -106,9 +106,6 @@ function bingUrl(city: string, query: string) {
 }
 
 const PORTALS: { city: string; host: string }[] = [
-  { city: "Campinas", host: "campinas.com.br" },
-  { city: "Presidente Prudente", host: "www.oimparcial.com.br" },
-  { city: "Limeira", host: "www.jornaldelimeira.com.br" },
   { city: "Ribeirão Preto", host: "www.tribunaribeirao.com.br" },
 ];
 const PORTAL_QUERIES = ["encontro de carros", "carros antigos", "automobilismo"];
