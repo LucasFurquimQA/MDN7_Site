@@ -33,18 +33,34 @@ export function parseFeed(xml: string): Candidate[] {
   });
 }
 
-export function classify(item: Candidate, city: string) {
+export function classify(item: Candidate, city: string, requireCity = true) {
   const title = normalize(item.title);
   if (NEGATIVE.test(title)) return false;
   if (!TOPIC.test(title) || !EVENT.test(title)) return false;
+  if (!requireCity) return true;
   return new RegExp(`(^|[^\\p{L}])${city.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|[^\\p{L}])`, "u").test(item.text.toLowerCase());
 }
 
 const titleKey = (title: string) => normalize(title).replace(/[^a-z0-9]+/g, " ").trim().slice(0, 120);
 
-function feedUrl(city: string) {
-  const query = `("encontro de carros" OR "encontro de motos" OR "carros antigos" OR automobilismo OR arrancada OR "exposição de carros" OR motofest OR "stock car" OR "festival automotivo") "${city}" when:14d`;
+type Source = { city: string; url: string; requireCity: boolean };
+
+function googleUrl(city: string) {
+  const query = `("encontro de carros" OR "encontro de motos" OR "carros antigos" OR automobilismo OR "exposição de carros" OR motofest OR "stock car" OR "festival automotivo") "${city}" when:14d`;
   return `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=pt-BR&gl=BR&ceid=BR:pt-419`;
+}
+
+const PORTALS: { city: string; host: string }[] = [
+  { city: "Campinas", host: "campinas.com.br" },
+  { city: "Presidente Prudente", host: "www.oimparcial.com.br" },
+  { city: "Limeira", host: "www.jornaldelimeira.com.br" },
+  { city: "Ribeirão Preto", host: "www.tribunaribeirao.com.br" },
+];
+const PORTAL_QUERIES = ["encontro de carros", "carros antigos", "automobilismo"];
+
+function sources(): Source[] {
+  const portals = PORTALS.flatMap(({ city, host }) => PORTAL_QUERIES.map(query => ({ city, requireCity: true, url: `https://${host}/?s=${encodeURIComponent(query)}&feed=rss2` })));
+  return [...portals, ...EVENT_CITIES.map(city => ({ city, requireCity: true, url: googleUrl(city) }))];
 }
 
 const createTable = "CREATE TABLE IF NOT EXISTS auto_events (id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL, url TEXT NOT NULL, source TEXT NOT NULL, city TEXT NOT NULL, dedupe_key TEXT NOT NULL UNIQUE, published_at TEXT NOT NULL, created_at TEXT NOT NULL)";
@@ -63,26 +79,29 @@ export async function collectEvents(db: D1Database) {
   const seen = new Set<string>();
   let feedsOk = 0, feedsFailed = 0, scanned = 0;
   let lastError = "";
-  for (const city of EVENT_CITIES) {
+  const fetched = await Promise.all(sources().map(async source => {
     try {
-      const response = await fetch(feedUrl(city), { headers: { "User-Agent": "Mozilla/5.0 (compatible; Midnigh7ClubEventsBot/1.0)" }, signal: AbortSignal.timeout(8000) });
-      if (!response.ok) { feedsFailed++; lastError = `HTTP ${response.status}`; continue; }
-      feedsOk++;
-      for (const item of parseFeed(await response.text())) {
-        scanned++;
-        const key = titleKey(item.title);
-        if (item.published.getTime() < cutoff || seen.has(key) || !classify(item, city)) continue;
-        seen.add(key);
-        keys.push(key);
-        rows.push({ id: crypto.randomUUID(), title: item.title.slice(0, 220), url: item.url, source: item.source.slice(0, 80), city, published_at: item.published.toISOString(), created_at: now });
-      }
+      const response = await fetch(source.url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; Midnigh7ClubEventsBot/1.0)" }, signal: AbortSignal.timeout(10000) });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return { source, items: parseFeed(await response.text()) };
     } catch (error) {
       feedsFailed++;
       lastError = error instanceof Error ? error.message : "erro";
-      console.error("Events feed failed", city, lastError);
+      return null;
     }
-  }
-  const statements = rows.map((row, i) => db.prepare("INSERT OR IGNORE INTO auto_events (id, title, url, source, city, dedupe_key, published_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").bind(row.id, row.title, row.url, row.source, row.city, keys[i], row.published_at, row.created_at));
+  }));
+  for (const result of fetched) {
+    if (!result) continue;
+    feedsOk++;
+    for (const item of result.items) {
+      scanned++;
+      const key = titleKey(item.title);
+      if (item.published.getTime() < cutoff || seen.has(key) || !classify(item, result.source.city, result.source.requireCity)) continue;
+      seen.add(key);
+      keys.push(key);
+      rows.push({ id: crypto.randomUUID(), title: item.title.slice(0, 220), url: item.url, source: item.source.slice(0, 80), city: result.source.city, published_at: item.published.toISOString(), created_at: now });
+    }
+  }  const statements = rows.map((row, i) => db.prepare("INSERT OR IGNORE INTO auto_events (id, title, url, source, city, dedupe_key, published_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").bind(row.id, row.title, row.url, row.source, row.city, keys[i], row.published_at, row.created_at));
   statements.push(db.prepare("DELETE FROM auto_events WHERE published_at < ?").bind(new Date(Date.now() - 90 * 86_400_000).toISOString()));
   const results = await db.batch(statements);
   const added = results.slice(0, rows.length).reduce((sum, result) => sum + (result.meta.changes ?? 0), 0);
