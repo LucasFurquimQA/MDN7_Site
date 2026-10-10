@@ -2,7 +2,7 @@ export type AutoEvent = { id: string; title: string; url: string; source: string
 
 export const EVENT_CITIES = ["Campinas", "Ribeirão Preto", "São José do Rio Preto", "Sorocaba", "Bauru", "Piracicaba", "Jundiaí", "Franca", "São Carlos", "Araraquara", "Presidente Prudente", "Marília", "Limeira"];
 
-const TOPIC = /encontro de (carros|motos|autom|ve[ií]culos)|car meet|carros antigos|autom[oó]veis antigos|carros cl[aá]ssicos|autom[oó]veis cl[aá]ssicos|autom[oó]vel|automobil|arrancada|drift|stock car|motovelocidade|kart|rally|rali|track ?day|passeio de (carros|motos|motociclistas)|moto ?clube|motociclismo|motociclistas|motos|tuning|rebaixados|hot ?rod|fusca|auto ?show|expo ?(auto|moto)|old ?cars|ve[ií]culos antigos|offroad|off-road|trilha/i;
+const TOPIC = /encontro de (carros|motos|autom|ve[ií]culos)|car meet|carros antigos|autom[oó]veis antigos|carros cl[aá]ssicos|autom[oó]veis cl[aá]ssicos|autom[oó]vel|automobil|arrancada de (carros|motos)|racha|drift|stock car|motovelocidade|kart|rally|rali|track ?day|passeio de (carros|motos|motociclistas)|moto ?clube|motociclismo|motociclistas|motos|tuning|rebaixados|hot ?rod|fusca|auto ?show|expo ?(auto|moto)|old ?cars|ve[ií]culos antigos|offroad|off-road|trilha/i;
 const EVENT = /encontro|exposi[cç][aã]o|festival|show|corrida|etapa|campeonato|evento|copa|feira|passeio|arrancada|concentra[cç][aã]o|moto ?fest|motofest|rally|rali|competi[cç][aã]o|exposi|desfile|trackday|track day|abertura|inscri[cç]/i;
 const NEGATIVE = /acidente|morre|morto|preso|presa|assalto|roubo|roubado|furto|furtado|apreendid|pol[ií]cia|multa|ipva|licita[cç][aã]o|recall|pre[cç]o|venda de|vaga|emprego|concession|promo[cç][aã]o|oferta|seminovo|homic[ií]dio|crime|tr[aâ]nsito|atropel|batida|colis[aã]o|incêndio|inc[eê]ndio|v[ií]tima|justi[cç]a|processo|furtam|roubam/i;
 
@@ -35,10 +35,9 @@ export function parseFeed(xml: string): Candidate[] {
 
 export function classify(item: Candidate, city: string) {
   const title = normalize(item.title);
-  const full = normalize(item.text);
   if (NEGATIVE.test(title)) return false;
   if (!TOPIC.test(title) || !EVENT.test(title)) return false;
-  return full.includes(normalize(city));
+  return new RegExp(`(^|[^\\p{L}])${city.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|[^\\p{L}])`, "u").test(item.text.toLowerCase());
 }
 
 const titleKey = (title: string) => normalize(title).replace(/[^a-z0-9]+/g, " ").trim().slice(0, 120);
@@ -62,11 +61,15 @@ export async function collectEvents(db: D1Database) {
   const rows: AutoEvent[] = [];
   const keys: string[] = [];
   const seen = new Set<string>();
+  let feedsOk = 0, feedsFailed = 0, scanned = 0;
+  let lastError = "";
   for (const city of EVENT_CITIES) {
     try {
-      const response = await fetch(feedUrl(city), { headers: { "User-Agent": "Midnigh7Club-EventsBot/1.0" } });
-      if (!response.ok) continue;
+      const response = await fetch(feedUrl(city), { headers: { "User-Agent": "Mozilla/5.0 (compatible; Midnigh7ClubEventsBot/1.0)" }, signal: AbortSignal.timeout(8000) });
+      if (!response.ok) { feedsFailed++; lastError = `HTTP ${response.status}`; continue; }
+      feedsOk++;
       for (const item of parseFeed(await response.text())) {
+        scanned++;
         const key = titleKey(item.title);
         if (item.published.getTime() < cutoff || seen.has(key) || !classify(item, city)) continue;
         seen.add(key);
@@ -74,13 +77,16 @@ export async function collectEvents(db: D1Database) {
         rows.push({ id: crypto.randomUUID(), title: item.title.slice(0, 220), url: item.url, source: item.source.slice(0, 80), city, published_at: item.published.toISOString(), created_at: now });
       }
     } catch (error) {
-      console.error("Events feed failed", city, error instanceof Error ? error.message : "error");
+      feedsFailed++;
+      lastError = error instanceof Error ? error.message : "erro";
+      console.error("Events feed failed", city, lastError);
     }
   }
   const statements = rows.map((row, i) => db.prepare("INSERT OR IGNORE INTO auto_events (id, title, url, source, city, dedupe_key, published_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").bind(row.id, row.title, row.url, row.source, row.city, keys[i], row.published_at, row.created_at));
   statements.push(db.prepare("DELETE FROM auto_events WHERE published_at < ?").bind(new Date(Date.now() - 90 * 86_400_000).toISOString()));
-  await db.batch(statements);
-  return { found: rows.length };
+  const results = await db.batch(statements);
+  const added = results.slice(0, rows.length).reduce((sum, result) => sum + (result.meta.changes ?? 0), 0);
+  return { found: rows.length, added, scanned, feedsOk, feedsFailed, lastError };
 }
 
 export async function listEvents(db: D1Database, city?: string): Promise<{ events: AutoEvent[]; available: boolean }> {
