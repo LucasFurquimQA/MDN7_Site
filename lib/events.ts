@@ -1,4 +1,4 @@
-export type AutoEvent = { id: string; title: string; url: string; source: string; city: string; published_at: string; created_at: string };
+export type AutoEvent = { id: string; title: string; url: string; source: string; city: string; published_at: string; created_at: string; image: string | null };
 
 export const EVENT_CITIES = ["São Paulo", "Itatiba", "Tremembé", "Piracicaba", "Birigui", "Nova Odessa", "Indaiatuba", "Mogi Guaçu", "Itapevi", "Ribeirão Preto", "Bauru", "São Roque"];
 
@@ -18,7 +18,7 @@ function decode(text: string) {
 const stripTags = (text: string) => decode(text).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 const tag = (block: string, name: string) => block.match(new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`, "i"))?.[1] ?? "";
 
-type Candidate = { title: string; url: string; source: string; published: Date; text: string };
+type Candidate = { title: string; url: string; source: string; published: Date; text: string; image: string | null };
 
 // O Bing embrulha o link da matéria; o endereço real fica no parâmetro "url".
 function realUrl(link: string) {
@@ -27,6 +27,13 @@ function realUrl(link: string) {
     if (parsed.hostname.endsWith("bing.com") && parsed.pathname.includes("apiclick")) return parsed.searchParams.get("url") || link;
   } catch { /* link inválido */ }
   return link;
+}
+
+// Miniatura enviada pelo Bing; vira capa do card.
+function coverImage(block: string) {
+  const raw = stripTags(tag(block, "News:Image"));
+  if (!/^https?:\/\/(www\.)?bing\.com\/th\?/i.test(raw)) return null;
+  return `${raw.replace(/^http:/i, "https:")}&w=640&h=360&c=14`;
 }
 
 export function parseFeed(xml: string): Candidate[] {
@@ -38,7 +45,7 @@ export function parseFeed(xml: string): Candidate[] {
     const url = realUrl(stripTags(tag(block, "link")));
     const published = new Date(stripTags(tag(block, "pubDate")));
     if (!title || !/^https?:\/\//i.test(url) || Number.isNaN(published.getTime())) return [];
-    return [{ title, url, source: source || new URL(url).hostname.replace(/^www\./, ""), published, text: `${title} ${stripTags(tag(block, "description"))}` }];
+    return [{ title, url, source: source || new URL(url).hostname.replace(/^www\./, ""), published, text: `${title} ${stripTags(tag(block, "description"))}`, image: coverImage(block) }];
   });
 }
 
@@ -116,7 +123,7 @@ function sources(): Source[] {
   return [...portals, ...bing];
 }
 
-const createTable = "CREATE TABLE IF NOT EXISTS auto_events (id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL, url TEXT NOT NULL, source TEXT NOT NULL, city TEXT NOT NULL, dedupe_key TEXT NOT NULL UNIQUE, published_at TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT)";
+const createTable = "CREATE TABLE IF NOT EXISTS auto_events (id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL, url TEXT NOT NULL, source TEXT NOT NULL, city TEXT NOT NULL, dedupe_key TEXT NOT NULL UNIQUE, published_at TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT, image TEXT)";
 let tableReady: Promise<unknown> | null = null;
 async function ensureTable(db: D1Database) {
   tableReady ??= (async () => {
@@ -125,6 +132,7 @@ async function ensureTable(db: D1Database) {
       await db.prepare("ALTER TABLE auto_events ADD COLUMN expires_at TEXT").run();
       await db.prepare("DELETE FROM auto_events WHERE expires_at IS NULL").run();
     } catch { /* a coluna já existe */ }
+    try { await db.prepare("ALTER TABLE auto_events ADD COLUMN image TEXT").run(); } catch { /* a coluna já existe */ }
   })().catch(error => { tableReady = null; throw error; });
   await tableReady;
 }
@@ -162,10 +170,10 @@ export async function collectEvents(db: D1Database) {
       seen.add(key);
       keys.push(key);
       expires.push(until);
-      rows.push({ id: crypto.randomUUID(), title: item.title.slice(0, 220), url: item.url, source: item.source.slice(0, 80), city: result.source.city, published_at: item.published.toISOString(), created_at: now });
+      rows.push({ id: crypto.randomUUID(), title: item.title.slice(0, 220), url: item.url, source: item.source.slice(0, 80), city: result.source.city, published_at: item.published.toISOString(), created_at: now, image: item.image });
     }
   }
-  const statements = rows.map((row, i) => db.prepare("INSERT OR IGNORE INTO auto_events (id, title, url, source, city, dedupe_key, published_at, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(row.id, row.title, row.url, row.source, row.city, keys[i], row.published_at, row.created_at, expires[i]));
+  const statements = rows.map((row, i) => db.prepare("INSERT OR IGNORE INTO auto_events (id, title, url, source, city, dedupe_key, published_at, created_at, expires_at, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(row.id, row.title, row.url, row.source, row.city, keys[i], row.published_at, row.created_at, expires[i], row.image));
   statements.push(db.prepare("DELETE FROM auto_events WHERE expires_at < ?").bind(new Date(Date.now() - 7 * 86_400_000).toISOString()));
   const results = await db.batch(statements);
   const added = results.slice(0, rows.length).reduce((sum, result) => sum + (result.meta.changes ?? 0), 0);
@@ -176,7 +184,7 @@ export async function listEvents(db: D1Database, city?: string): Promise<{ event
   try {
     await ensureTable(db);
     const since = new Date().toISOString();
-    const base = "SELECT id, title, url, source, city, published_at, created_at FROM auto_events WHERE expires_at >= ?";
+    const base = "SELECT id, title, url, source, city, published_at, created_at, image FROM auto_events WHERE expires_at >= ?";
     const statement = city && EVENT_CITIES.includes(city)
       ? db.prepare(`${base} AND city = ? ORDER BY published_at DESC LIMIT 100`).bind(since, city)
       : db.prepare(`${base} ORDER BY published_at DESC LIMIT 100`).bind(since);
