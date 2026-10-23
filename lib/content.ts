@@ -36,6 +36,7 @@ export const contentSchema = z.object({
   members: z.array(memberSchema).length(7),
   products: z.array(productSchema).min(1, "Cadastre pelo menos uma peça.").max(50).default(defaultProducts),
   roupasMaintenance: z.boolean().default(false),
+  eventosEnabled: z.boolean().default(true),
 }).superRefine((value, ctx) => {
   const usernames = new Set<string>();
   value.members.forEach((member, index) => {
@@ -52,7 +53,7 @@ export const contentSchema = z.object({
   });
 });
 export function normalizeContent(input: ClubContent): ClubContent {
-  return { story: input.story.trim(), instagram: instagramUrl(input.instagram), roupasMaintenance: !!input.roupasMaintenance, members: input.members.map(member => ({ ...member, instagram: instagramUrl(member.instagram), username: instagramUsername(member.instagram) || "", name: member.name.trim(), bio: member.bio.trim(), photo: member.photo.trim() })), products: (input.products || defaultProducts).map(product => {
+  return { story: input.story.trim(), instagram: instagramUrl(input.instagram), roupasMaintenance: !!input.roupasMaintenance, eventosEnabled: !!input.eventosEnabled, members: input.members.map(member => ({ ...member, instagram: instagramUrl(member.instagram), username: instagramUsername(member.instagram) || "", name: member.name.trim(), bio: member.bio.trim(), photo: member.photo.trim() })), products: (input.products || defaultProducts).map(product => {
     const legacyCuts = Array.isArray(product.cuts) ? [...new Set(product.cuts.map(cut => cut.trim()).filter(Boolean))] : product.cut?.trim() ? [product.cut.trim()] : ["Oversized"];
     const variants: ClothingVariant[] = (product.variants?.length ? product.variants : [{ type: product.type, cuts: legacyCuts }]).map(variant => {
       const photos = variant.photos && Object.fromEntries(Object.entries(variant.photos).map(([cut, value]) => [cut, { images: value.images.slice(0, MAX_PIECE_PHOTOS), cover: Math.min(Math.max(value.cover, 0), Math.max(value.images.length - 1, 0)) }]));
