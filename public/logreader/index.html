@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0c0c">
+<title>Log Reader</title>
+<link rel="icon" href="/favicon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <button id="menuBtn" class="icon" title="Canais">☰</button>
+  <div class="brand"><a href="/" target="_top"><img src="/images/logo.png" alt="Midnigh7 Club"></a><h1>Log Reader</h1></div>
+  <span id="fileInfo" class="muted"></span>
+  <div class="spacer"></div>
+  <button id="clearBtn" hidden>Limpar dados</button>
+  <label class="btn primary">Abrir CSV<input id="fileInput" type="file" accept=".csv,text/csv" hidden></label>
+</header>
+
+<div id="drop" class="drop">
+  <div class="drop-inner">
+    <div>
+      <div class="eyebrow">Cultura automotiva. Dados reais.</div>
+      <h2>Arraste seu log CSV</h2>
+      <p class="muted">Log exportado do <b>Car Scanner</b> no formato <b>CSV #1 (Vertical layout)</b>.<br>Tamanho máximo: <b>10 MB</b>.</p>
+      <p id="dropError" class="drop-error" role="alert" hidden></p>
+      <p class="privacy">🔒 O arquivo é lido apenas no seu navegador. Nada é enviado nem armazenado em servidor — ao fechar a página ele deixa de existir. Os resultados ficam salvos só neste aparelho, e você pode apagá-los em “Limpar dados”.</p>
+    </div>
+    <figure class="tutorial">
+      <img src="tutorial.jpeg" alt="Car Scanner: tela Data recording com a opção CSV #1 (Vertical layout) destacada" width="384" height="834">
+      <figcaption>Como exportar: no Car Scanner abra <b>Data recording</b>, escolha o registro, toque em exportar e selecione <b>CSV #1 (Vertical layout)</b>.</figcaption>
+    </figure>
+  </div>
+</div>
+
+<main id="app" hidden>
+  <aside id="side">
+    <input id="search" type="search" placeholder="Filtrar canais…">
+    <div class="row">
+      <button id="selAll" class="sm">Todos</button>
+      <button id="selNone" class="sm">Nenhum</button>
+    </div>
+    <ul id="chanList"></ul>
+  </aside>
+
+  <section id="content">
+    <nav id="tabs">
+      <button data-tab="chart" class="active">Gráficos</button>
+      <button data-tab="map">Mapa</button>
+      <button data-tab="stats">Estatísticas</button>
+      <button data-tab="info">Arquivo</button>
+    </nav>
+
+    <div id="tab-chart" class="tab">
+      <div class="toolbar">
+        <select id="mode">
+          <option value="stack">Painéis separados</option>
+          <option value="overlay">Sobrepor (normalizado)</option>
+        </select>
+        <button id="zin" class="sm">＋</button>
+        <button id="zout" class="sm">－</button>
+        <button id="zreset" class="sm">Reset</button>
+        <span id="readout" class="muted"></span>
+      </div>
+      <div id="chartWrap"><canvas id="chart"></canvas></div>
+      <div id="legend"></div>
+    </div>
+
+    <div id="tab-map" class="tab" hidden>
+      <div class="toolbar">
+        <label>Colorir por <select id="mapChan"></select></label>
+        <button id="mzin" class="sm">＋</button>
+        <button id="mzout" class="sm">－</button>
+        <button id="mzreset" class="sm">Reset</button>
+        <span id="mapInfo" class="muted"></span>
+      </div>
+      <div id="mapWrap"><canvas id="map"></canvas><div id="mapTip" hidden></div></div>
+    </div>
+
+    <div id="tab-stats" class="tab" hidden>
+      <div class="toolbar">
+        <label><input type="checkbox" id="statsView"> Somente intervalo visível</label>
+        <label><input type="checkbox" id="statsSel"> Somente selecionados</label>
+        <button id="statsCsv" class="sm">Exportar CSV</button>
+      </div>
+      <div class="tableWrap"><table id="statsTable"></table></div>
+    </div>
+
+    <div id="tab-info" class="tab" hidden>
+      <div class="tableWrap"><table id="infoTable"></table></div>
+    </div>
+  </section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
