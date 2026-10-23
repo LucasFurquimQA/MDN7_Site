@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUpRight, CalendarDays, Check, CircleCheck, Handshake, Menu, Shirt, Trophy, Users, X } from "lucide-react";
+import { ArrowDown, ArrowUpRight, CalendarDays, Check, CircleCheck, Gauge, Handshake, Menu, Shirt, Trophy, Users, X } from "lucide-react";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ClubContent, instagramUsername, Member } from "@/lib/club";
-const links = [{ id: "o-grupo", title: "O grupo", href: "#o-grupo", Icon: Users, anim: "group" }, { id: "membros", title: "Referências", href: "#membros", Icon: Trophy, anim: "trophy" }, { id: "participar", title: "Como participar", href: "#participar", Icon: CircleCheck, anim: "check" }, { id: "roupas", title: "7Wear", href: "/7wear", Icon: Shirt, anim: "shirt" }, { id: "parceiros", title: "Parceiros", href: "/parceiros", Icon: Handshake, anim: "handshake" }, { id: "eventos", title: "Eventos", href: "/eventos", Icon: CalendarDays, anim: "calendar" }];
+const links = [{ id: "o-grupo", title: "O grupo", href: "#o-grupo", Icon: Users, anim: "group" }, { id: "membros", title: "Referências", href: "#membros", Icon: Trophy, anim: "trophy" }, { id: "participar", title: "Como participar", href: "#participar", Icon: CircleCheck, anim: "check" }, { id: "roupas", title: "7Wear", href: "/7wear", Icon: Shirt, anim: "shirt" }, { id: "parceiros", title: "Parceiros", href: "/parceiros", Icon: Handshake, anim: "handshake" }, { id: "eventos", title: "Eventos", href: "/eventos", Icon: CalendarDays, anim: "calendar" }, { id: "logreader", title: "Log Reader", href: "/logreader", Icon: Gauge, anim: "gauge" }];
 // Auto-discovers every image inside app/images/hero at build time — drop a new photo
 // in that folder and it's picked up automatically, no code changes needed.
 const heroModules = import.meta.glob("./images/hero/*.{jpg,jpeg,png,webp}", { eager: true, import: "default", query: "?url" }) as Record<string, string>;
