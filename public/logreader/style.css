@@ -20,6 +20,9 @@ input[type=checkbox]{accent-color:var(--acc)}
 .primary:hover{background:#e2c673;border-color:#e2c673}
 .sm{padding:3px 9px}
 .icon{display:none;font-size:18px;padding:2px 9px}
+.close,#backdrop{display:none}
+#backdrop{position:fixed;inset:0;z-index:10;background:rgba(0,0,0,.6)}
+html,body{touch-action:pan-x pan-y}
 .drop{flex:1;display:flex;align-items:center;justify-content:center;text-align:center;margin:16px;border:1px dashed var(--line);border-radius:var(--r);padding:20px}
 .drop h2{margin:0 0 14px;font-size:clamp(28px,5vw,52px);line-height:1;font-weight:900;letter-spacing:-.05em;text-transform:uppercase}
 .drop p{font:12px/1.8 var(--mono);text-transform:uppercase;letter-spacing:.08em}
@@ -84,7 +87,10 @@ tbody tr:hover td,#statsTable tr:hover td{background:#ffffff08}
 ::-webkit-scrollbar-track{background:transparent}
 @media(max-width:760px){
   .icon{display:block}
-  aside{position:fixed;z-index:10;top:0;bottom:0;left:0;width:82vw;transform:translateX(-100%);transition:transform .2s;padding-top:max(8px,env(safe-area-inset-top))}
-  aside.open{transform:none;box-shadow:0 0 0 100vmax rgba(0,0,0,.6)}
+  aside{position:fixed;z-index:11;top:0;bottom:0;left:0;width:82vw;transform:translateX(-100%);transition:transform .2s;padding-top:max(8px,env(safe-area-inset-top))}
+  aside.open{transform:none}
+  #backdrop.show{display:block}
+  .close{display:block;width:100%;padding:10px;font-weight:700}
+  input,select{font-size:16px}
   #fileInfo,.brand h1{display:none}
 }

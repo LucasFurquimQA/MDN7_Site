@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0b0c0c">
 <title>Log Reader</title>
 <link rel="icon" href="/favicon.svg">
@@ -35,7 +35,9 @@
 </div>
 
 <main id="app" hidden>
+  <div id="backdrop"></div>
   <aside id="side">
+    <button id="closeSide" class="close" aria-label="Fechar menu">✕ Fechar</button>
     <input id="search" type="search" placeholder="Filtrar canais…">
     <div class="row">
       <button id="selAll" class="sm">Todos</button>
