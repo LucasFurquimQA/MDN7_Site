@@ -283,8 +283,13 @@ if (typeof document !== 'undefined') (function () {
   $('search').oninput = buildList;
   $('selAll').onclick = () => { S.ds.channels.forEach(c => S.sel.add(c.id)); buildList(); refresh(); };
   $('selNone').onclick = () => { S.sel.clear(); buildList(); refresh(); };
-  $('menuBtn').onclick = () => $('side').classList.toggle('open');
-  $('side').addEventListener('click', e => { if (e.target === $('side')) $('side').classList.remove('open'); });
+  const setSide = open => { $('side').classList.toggle('open', open); $('backdrop').classList.toggle('show', open); };
+  $('menuBtn').onclick = () => setSide(!$('side').classList.contains('open'));
+  $('closeSide').onclick = () => setSide(false);
+  $('backdrop').onclick = () => setSide(false);
+  // iOS Safari ignores user-scalable=no; block page pinch-zoom (canvas pinch uses pointer events)
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach(t => document.addEventListener(t, e => e.preventDefault()));
+  document.addEventListener('touchmove', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
 
   function buildSelects() {
     const gps = S.ds.channels.filter(c => c.hasGps);
