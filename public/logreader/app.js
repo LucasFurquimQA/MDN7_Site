@@ -517,8 +517,13 @@ if (typeof document !== 'undefined') (function () {
     const px = i => (ox + (ch.lon[i] - lo0) * kx * sc) * V.z + V.x, py = i => (oy + (la1 - ch.lat[i]) * sc) * V.z + V.y;
     mapState = { ch, pts, px, py };
     const range = ch.max - ch.min || 1;
-    const col = v => { const f = (v - ch.min) / range; return `hsl(${240 - f * 240} 85% 55%)`; };
+    const col = v => {
+      if (!isFinite(v)) return '#ffffff26';
+      const f = Math.min(1, Math.max(0, (v - ch.min) / range));
+      return `hsl(${240 - f * 240} 85% 55%)`;
+    };
     const inView = i => ch.t[i] >= S.a && ch.t[i] <= S.b;
+    g.save(); g.beginPath(); g.rect(0, 0, W, H - 30); g.clip();
     g.lineWidth = 2; g.lineJoin = 'round';
     for (let j = 1; j < pts.length; j++) {
       const i0 = pts[j - 1], i1 = pts[j];
@@ -534,6 +539,7 @@ if (typeof document !== 'undefined') (function () {
         dot(best, '#f3f3ed');
       }
     }
+    g.restore();
     const gr = g.createLinearGradient(pad, 0, W - pad, 0);
     for (let k = 0; k <= 10; k++) gr.addColorStop(k / 10, `hsl(${240 - k * 24} 85% 55%)`);
     g.fillStyle = gr; g.fillRect(pad, H - 18, W - 2 * pad, 8);
