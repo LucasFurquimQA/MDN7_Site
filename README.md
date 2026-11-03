@@ -2,6 +2,8 @@
 
 Site responsivo do clube com catálogo de cinco estampas, duas modelagens e painel em `/admin`. A loja Midnigh7 Wear fica em `/7wear`; o endereço antigo `/roupas` redireciona para ela.
 
+No painel `/admin/catalogo`, o campo **Loja externa** pode apontar `/7wear` para uma loja externa (por padrão, `https://midnigh7club.lojavirtualnuvem.com.br/`). Apague o endereço e salve para voltar ao catálogo local. O destino deve ser uma URL HTTPS.
+
 ## Conteúdo
 
 A história, o Instagram oficial, o catálogo de roupas e as sete referências são gravados em D1. As imagens enviadas pelo painel são armazenadas no Cloudflare R2; o D1 guarda apenas os caminhos das imagens e os demais dados do site. No painel em `/admin`, o responsável pode editar nomes, tipos, vários cortes (como oversized, babylook ou básico), edições, legendas e fotos das peças, além de adicionar ou remover itens. Os cortes devem ser separados por vírgulas. Cada foto pode ter até 1,5 MB. O painel só permite alterações pelo proprietário identificado por `ADMIN_EMAIL`, configurado como variável protegida na hospedagem. Visitantes não possuem acesso de escrita.
